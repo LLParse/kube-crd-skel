@@ -1,13 +1,13 @@
 kube-crd-skel
 =============
 
-This project porivides a skeleton for writing Kubernetes controllers that interact with custom Kubernetes resources.
+This project provides a skeleton for writing Kubernetes controllers that interact with Kubernetes CustomResourceDefinitions.
 
 ## Building (optional)
 
-The controller is pre-compiled and stored in Dockerhub. Buliding is not
+The controller is pre-compiled and stored in Dockerhub. To build it, run:
 
-Run `hack/build` to build the controller.
+`hack/build`
 
 ## Usage
 
