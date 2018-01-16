@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: invalid
+---
+apiVersion: rancher.com/v1alpha1
+kind: VirtualMachine
+metadata:
+  namespace: invalid
+  name: example
+spec:
+  cpu_milli: 250
+  memory_mb: 384

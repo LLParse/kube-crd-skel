@@ -1,0 +1,30 @@
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: virtualmachines.rancher.com
+spec:
+  group: rancher.com
+  version: v1alpha1
+  scope: Namespaced
+  names:
+    plural: virtualmachines
+    singular: virtualmachine
+    kind: VirtualMachine
+    shortNames:
+    - vm
+  # Validation is only enforced if your apiserver has the feature explicitly enabled:
+  # <kube-apiserver> --feature-gates CustomResourceValidation=true
+  validation:
+    openAPIV3Schema:
+      properties:
+        spec:
+          properties:
+            cpu_milli:
+              type: integer
+              minimum: 500
+              maximum: 8000
+            memory_mb:
+              type: integer
+              minimum: 512
+              maximum: 65536
