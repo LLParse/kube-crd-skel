@@ -12,8 +12,8 @@ The controller is pre-compiled and stored in Dockerhub. To build it, run:
 ## Usage
 
 1. Start a Kubernetes v1.7.0+ cluster and configure `kubectl` CLI with a valid kubeconfig.
-2. Run `kubectl create -f hack/deploy.yaml` to create the CRD and start the controller.
-3. Run `kubectl create -f hack/example.yaml` to create some example objects.
+2. Run `kubectl create -f hack/deploy.yaml` to start the controller.
+3. Run `kubectl create -f hack/valid_vms.yaml` to create some example objects.
 
 ## Code Generation
 

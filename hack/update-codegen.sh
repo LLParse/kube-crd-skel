@@ -1,16 +1,17 @@
 #!/bin/bash
 
-set -o errexit
-set -o nounset
-set -o pipefail
+# Update this to ensure the generated client code reflects the correct repo path
+REPO=${REPO:-"github.com/llparse/kube-crd-skel"}
 
-SCRIPT_ROOT=$(dirname ${BASH_SOURCE})/..
+CODEGEN_IMAGE=${CODEGEN_IMAGE:-llparse/k8s-codegen:1.8}
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-CODEGEN_PKG=${CODEGEN_PKG:-$(cd ${SCRIPT_ROOT}; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo $GOPATH/src/k8s.io/code-generator)}
 
-cd ${CODEGEN_PKG}
-./generate-groups.sh "deepcopy,client,informer,lister" \
-  github.com/llparse/kube-crd-skel/pkg/client github.com/llparse/kube-crd-skel/pkg/apis \
-  virtualmachine:v1alpha1 \
-  --go-header-file ${DIR}/boilerplate.txt
-cd -
+docker run --rm -it \
+  -v ${DIR}/..:/root/go/src/${REPO} \
+  -w /root/go/src/k8s.io/code-generator \
+  ${CODEGEN_IMAGE} \
+    ./generate-groups.sh \
+      "deepcopy,client,informer,lister" "${REPO}/pkg/client" "${REPO}/pkg/apis" \
+      virtualmachine:v1alpha1 \
+      --go-header-file "/root/go/src/${REPO}/hack/boilerplate.txt"
