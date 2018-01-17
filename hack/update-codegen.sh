@@ -13,5 +13,5 @@ docker run --rm -it \
   ${CODEGEN_IMAGE} \
     ./generate-groups.sh \
       "deepcopy,client,informer,lister" "${REPO}/pkg/client" "${REPO}/pkg/apis" \
-      virtualmachine:v1alpha1 \
+      ranchervm:v1alpha1 \
       --go-header-file "/root/go/src/${REPO}/hack/boilerplate.txt"

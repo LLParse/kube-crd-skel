@@ -3,7 +3,7 @@ kind: Namespace
 metadata:
   name: invalid
 ---
-apiVersion: rancher.com/v1alpha1
+apiVersion: vm.rancher.com/v1alpha1
 kind: VirtualMachine
 metadata:
   namespace: invalid

@@ -16,7 +16,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1alpha1 "github.com/llparse/kube-crd-skel/pkg/apis/virtualmachine/v1alpha1"
+	v1alpha1 "github.com/llparse/kube-crd-skel/pkg/apis/ranchervm/v1alpha1"
 	scheme "github.com/llparse/kube-crd-skel/pkg/client/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"

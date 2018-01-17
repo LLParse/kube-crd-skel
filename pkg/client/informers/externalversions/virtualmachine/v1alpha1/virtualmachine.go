@@ -19,7 +19,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	virtualmachine_v1alpha1 "github.com/llparse/kube-crd-skel/pkg/apis/virtualmachine/v1alpha1"
+	ranchervm_v1alpha1 "github.com/llparse/kube-crd-skel/pkg/apis/ranchervm/v1alpha1"
 	versioned "github.com/llparse/kube-crd-skel/pkg/client/clientset/versioned"
 	internalinterfaces "github.com/llparse/kube-crd-skel/pkg/client/informers/externalversions/internalinterfaces"
 	v1alpha1 "github.com/llparse/kube-crd-skel/pkg/client/listers/virtualmachine/v1alpha1"
@@ -54,7 +54,7 @@ func NewVirtualMachineInformer(client versioned.Interface, namespace string, res
 				return client.VirtualmachineV1alpha1().VirtualMachines(namespace).Watch(options)
 			},
 		},
-		&virtualmachine_v1alpha1.VirtualMachine{},
+		&ranchervm_v1alpha1.VirtualMachine{},
 		resyncPeriod,
 		indexers,
 	)
@@ -65,7 +65,7 @@ func defaultVirtualMachineInformer(client versioned.Interface, resyncPeriod time
 }
 
 func (f *virtualMachineInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&virtualmachine_v1alpha1.VirtualMachine{}, defaultVirtualMachineInformer)
+	return f.factory.InformerFor(&ranchervm_v1alpha1.VirtualMachine{}, defaultVirtualMachineInformer)
 }
 
 func (f *virtualMachineInformer) Lister() v1alpha1.VirtualMachineLister {
