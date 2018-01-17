@@ -32,7 +32,7 @@ In v1.9, CRD validation is a beta feature and is enabled, by default. In v1.8,
 it is an alpha feature and must be explicitly enabled. To do so, start
 `kube-apiserver` with the following flag appended:
 
-`--feature-gates CustomResourceValidation=true`
+`--feature-gates=CustomResourceValidation=true`
 
 If the feature is left disabled, no validation will occur at the apiserver. It
 is up to the CRD creator / controller to validate the specification and react

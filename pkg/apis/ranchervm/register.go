@@ -16,6 +16,12 @@ const (
 )
 
 func CreateCustomResourceDefinition(clientset apiextensionsclient.Interface) error {
+	var minCpuMilli, maxCpuMilli, minMemoryMB, maxMemoryMB float64
+	minCpuMilli = 500.0
+	maxCpuMilli = 8000.0
+	minMemoryMB = 512.0
+	maxMemoryMB = 65536.0
+
 	crd := &apiextensionsv1beta1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "virtualmachines." + GroupName,
@@ -30,22 +36,26 @@ func CreateCustomResourceDefinition(clientset apiextensionsclient.Interface) err
 				ShortNames: []string{"vm"},
 			},
 			Scope: apiextensionsv1beta1.NamespaceScoped,
-			// Validation: &apiextensionsv1beta1.CustomResourceValidation{
-			//   OpenAPIV3Schema: &apiextensionsv1beta1.JSONSchemaProps{
-			//     Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
-			//       "cpu_milli": apiextensionsv1beta1.JSONSchemaProps{
-			//         Type: "integer",
-			//         Minimum: &(float64(500.0)),
-			//         Maximum: &8000.0,
-			//       },
-			//       "memory_mb": apiextensionsv1beta1.JSONSchemaProps{
-			//         Type: "integer",
-			//         Minimum: &512.0,
-			//         Maximum: &65536.0,
-			//       },
-			//     },
-			//   },
-			// },
+			Validation: &apiextensionsv1beta1.CustomResourceValidation{
+				OpenAPIV3Schema: &apiextensionsv1beta1.JSONSchemaProps{
+					Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+						"spec": apiextensionsv1beta1.JSONSchemaProps{
+							Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+								"cpu_milli": apiextensionsv1beta1.JSONSchemaProps{
+									Type:    "integer",
+									Minimum: &minCpuMilli,
+									Maximum: &maxCpuMilli,
+								},
+								"memory_mb": apiextensionsv1beta1.JSONSchemaProps{
+									Type:    "integer",
+									Minimum: &minMemoryMB,
+									Maximum: &maxMemoryMB,
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
