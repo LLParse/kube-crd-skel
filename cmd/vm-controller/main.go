@@ -22,6 +22,7 @@ import (
 
 func main() {
 	kubeconfig := flag.String("kubeconfig", "", "Path to a kube config; only required if out-of-cluster.")
+	flag.Set("logtostderr", "true")
 	flag.Parse()
 
 	config, err := NewKubeClientConfig(*kubeconfig)

@@ -1,0 +1,27 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: vm-controller
+  namespace: default
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: vm-controller
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values: ["vm-controller"]
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: vm-controller
+        image: docker.io/llparse/ranchervm-controller:dev
+        imagePullPolicy: Always
+        args:
+        - -v 5
