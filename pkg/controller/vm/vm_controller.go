@@ -23,13 +23,16 @@ import (
 )
 
 type VirtualMachineController struct {
-	vmClient        vmclientset.Interface
-	kubeClient      kubernetes.Interface
+	vmClient   vmclientset.Interface
+	kubeClient kubernetes.Interface
+
 	vmLister        vmlisters.VirtualMachineLister
 	vmListerSynced  cache.InformerSynced
 	podLister       corelisters.PodLister
 	podListerSynced cache.InformerSynced
-	vmQueue         workqueue.RateLimitingInterface
+
+	vmQueue  workqueue.RateLimitingInterface
+	podQueue workqueue.RateLimitingInterface
 }
 
 func NewVirtualMachineController(
@@ -43,6 +46,7 @@ func NewVirtualMachineController(
 		vmClient:   vmClient,
 		kubeClient: kubeClient,
 		vmQueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "virtualmachine"),
+		podQueue:   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod"),
 	}
 
 	vmInformer.Informer().AddEventHandler(
@@ -50,6 +54,17 @@ func NewVirtualMachineController(
 			AddFunc:    func(obj interface{}) { ctrl.enqueueWork(ctrl.vmQueue, obj) },
 			UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueWork(ctrl.vmQueue, newObj) },
 			DeleteFunc: func(obj interface{}) { ctrl.enqueueWork(ctrl.vmQueue, obj) },
+		},
+	)
+
+	podInformer.Informer().AddEventHandler(
+		cache.FilteringResourceEventHandler{
+			FilterFunc: ctrl.podFilterFunc,
+			Handler: cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { ctrl.enqueueWork(ctrl.podQueue, obj) },
+				UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueWork(ctrl.podQueue, newObj) },
+				DeleteFunc: func(obj interface{}) { ctrl.enqueueWork(ctrl.podQueue, obj) },
+			},
 		},
 	)
 
@@ -73,8 +88,9 @@ func (ctrl *VirtualMachineController) Run(workers int, stopCh <-chan struct{}) {
 	}
 
 	for i := 0; i < workers; i++ {
-		go wait.Until(ctrl.worker, time.Second, stopCh)
+		go wait.Until(ctrl.vmWorker, time.Second, stopCh)
 	}
+	go wait.Until(ctrl.podWorker, time.Second, stopCh)
 
 	<-stopCh
 }
@@ -113,7 +129,7 @@ func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
 			Name:      vm.Name,
 			Namespace: vm.Namespace,
 			Labels: map[string]string{
-				"type": "vm",
+				"type": "ranchervm",
 			},
 			Annotations: map[string]string{
 				ranchervm.GroupName + "/cpu_milli": strconv.Itoa(int(vm.Spec.CpuMillis)),
@@ -136,7 +152,15 @@ func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
 	}
 }
 
-func (ctrl *VirtualMachineController) worker() {
+func (ctrl *VirtualMachineController) deleteVM(ns, name string) {
+	err := ctrl.kubeClient.CoreV1().Pods(ns).Delete(name, &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		glog.V(2).Infof("error deleting pod %s/%s: %v", ns, name, err)
+		return
+	}
+}
+
+func (ctrl *VirtualMachineController) vmWorker() {
 	workFunc := func() bool {
 		keyObj, quit := ctrl.vmQueue.Get()
 		if quit {
@@ -165,6 +189,7 @@ func (ctrl *VirtualMachineController) worker() {
 
 		// The volume is not in informer cache, the event must have been
 		// delete
+		ctrl.deleteVM(ns, name)
 		return false
 	}
 	for {
@@ -173,4 +198,35 @@ func (ctrl *VirtualMachineController) worker() {
 			return
 		}
 	}
+}
+
+func (ctrl *VirtualMachineController) podWorker() {
+	workFunc := func() bool {
+		keyObj, quit := ctrl.podQueue.Get()
+		if quit {
+			return true
+		}
+		defer ctrl.podQueue.Done(keyObj)
+		key := keyObj.(string)
+		glog.V(5).Infof("podWorker[%s]", key)
+
+		glog.V(5).Infof("enqueued %q for sync", keyObj)
+		ctrl.vmQueue.Add(keyObj)
+		return false
+	}
+	for {
+		if quit := workFunc(); quit {
+			glog.Infof("pod worker queue shutting down")
+			return
+		}
+	}
+}
+
+func (ctrl *VirtualMachineController) podFilterFunc(obj interface{}) bool {
+	if pod, ok := obj.(*corev1.Pod); ok {
+		if podType, ok := pod.Labels["type"]; ok && podType == "ranchervm" {
+			return true
+		}
+	}
+	return false
 }
