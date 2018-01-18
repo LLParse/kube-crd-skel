@@ -158,6 +158,8 @@ func (ctrl *VirtualMachineController) deleteVM(ns, name string) {
 		glog.V(2).Infof("error deleting pod %s/%s: %v", ns, name, err)
 		return
 	}
+	// TODO suppress podInformer from receiving delete event and subsequently
+	// requeueing the VM
 }
 
 func (ctrl *VirtualMachineController) vmWorker() {
