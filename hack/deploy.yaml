@@ -23,5 +23,3 @@ spec:
       - name: vm-controller
         image: docker.io/llparse/ranchervm-controller:dev
         imagePullPolicy: Always
-        args:
-        - -v 5

@@ -12,16 +12,16 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/workqueue"
 
 	"github.com/llparse/kube-crd-skel/pkg/apis/ranchervm"
 	"github.com/llparse/kube-crd-skel/pkg/client/clientset/versioned"
 	"github.com/llparse/kube-crd-skel/pkg/client/informers/externalversions"
-	"github.com/llparse/kube-crd-skel/pkg/controller"
+	"github.com/llparse/kube-crd-skel/pkg/controller/vm"
 )
 
 func main() {
 	kubeconfig := flag.String("kubeconfig", "", "Path to a kube config; only required if out-of-cluster.")
+	workers := flag.Int("workers", 5, "Concurrent VM syncs")
 	flag.Set("logtostderr", "true")
 	flag.Parse()
 
@@ -38,21 +38,16 @@ func main() {
 	vmClientset := versioned.NewForConfigOrDie(config)
 	vmInformerFactory := externalversions.NewSharedInformerFactory(vmClientset, 0*time.Second)
 
-	stop := makeStopChan()
-	vmInformerFactory.Start(stop)
+	stopCh := makeStopChan()
 
-	vmInformer := vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines()
+	go vm.NewVirtualMachineController(
+		vmClientset,
+		vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
+	).Run(*workers, stopCh)
 
-	c := controller.New(
-		vmClientset.VirtualmachineV1alpha1(),
-		vmInformer.Informer(),
-		vmInformer.Lister(),
-		workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
-	)
-
-	if err := c.Run(stop); err != nil {
-		panic(err)
-	}
+	vmInformerFactory.Start(stopCh)
+	
+	<-stopCh
 }
 
 func NewKubeClientConfig(configPath string) (*rest.Config, error) {
