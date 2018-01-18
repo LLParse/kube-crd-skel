@@ -3,37 +3,43 @@ kube-crd-skel
 
 This project provides a skeleton for writing Kubernetes controllers that interact with Kubernetes CustomResourceDefinitions.
 
-## Building (optional)
-
-The controller is pre-compiled and stored in Dockerhub. To build it, run:
-
-`hack/build`
-
 ## Usage
 
-1. Start a Kubernetes v1.7.0+ cluster and configure `kubectl` CLI with a valid kubeconfig.
-2. Run `kubectl create -f hack/deploy.yaml` to start the controller.
-3. Run `kubectl create -f hack/valid_vms.yaml` to create some example objects.
+1. Start a Kubernetes v1.7.0+ cluster and configure `kubectl` CLI with a valid kube config.
+2. Run `kubectl create -f hack/deploy.yaml` to start an in-cluster controller.
+3. Run `kubectl create -f hack/example/vm.yaml` to create an example object.
 
-## Code Generation
+## Building
 
-Changing CRD specifications will require regenerating client code. To do so,
-run the following:
+To build the controller for your machine's OS/architecture, run:
+
+`hack/build.sh`
+
+To build the Docker image `mydockerhubacct/ranchervm-controller:dev`, run:
+
+`IMAGE=yes REPO=mydockerhubacct hack/build.sh`
+
+The script will ask you if you want to publish the image to Dockerhub.
+
+### Code Generation
+
+Changing CRD schema will require regenerating client code. To do so, run:
 
 `hack/update-codegen.sh`
 
-You may check if generated code is out of date at any time by running:
+### Updating dependencies
 
-`hack/verify-codegen.sh`
+This project uses [glide](https://github.com/Masterminds/glide) for package management.
+To update the project dependencies, run:
+
+`hack/update-deps.sh` 
 
 ## Validation
 
-In v1.9, CRD validation is a beta feature and is enabled, by default. In v1.8,
-it is an alpha feature and must be explicitly enabled. To do so, start
-`kube-apiserver` with the following flag appended:
+In Kubernetes v1.9, CRD validation beta feature is enabled by default.
+In Kubernetes v1.8, CRD validation alpha feature must be explicitly enabled.
+To do so, start `kube-apiserver` with the following flag appended:
 
 `--feature-gates=CustomResourceValidation=true`
 
-If the feature is left disabled, no validation will occur at the apiserver. It
-is up to the CRD creator / controller to validate the specification and react
-accordingly.
+If the feature remains disabled, any validation definitions will be ignored.
