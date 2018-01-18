@@ -1,34 +1,48 @@
 package vm
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/golang/glog"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	coreinformers "k8s.io/client-go/informers/core/v1"
+	"k8s.io/client-go/kubernetes"
+	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/llparse/kube-crd-skel/pkg/apis/ranchervm"
+	vmapi "github.com/llparse/kube-crd-skel/pkg/apis/ranchervm/v1alpha1"
 	vmclientset "github.com/llparse/kube-crd-skel/pkg/client/clientset/versioned"
-	virtualmachineinformers "github.com/llparse/kube-crd-skel/pkg/client/informers/externalversions/virtualmachine/v1alpha1"
-	vmlisterv1alpha1 "github.com/llparse/kube-crd-skel/pkg/client/listers/virtualmachine/v1alpha1"
+	vminformers "github.com/llparse/kube-crd-skel/pkg/client/informers/externalversions/virtualmachine/v1alpha1"
+	vmlisters "github.com/llparse/kube-crd-skel/pkg/client/listers/virtualmachine/v1alpha1"
 )
 
 type VirtualMachineController struct {
-	vmClient       vmclientset.Interface
-	vmLister       vmlisterv1alpha1.VirtualMachineLister
-	vmListerSynced cache.InformerSynced
-	vmQueue        workqueue.RateLimitingInterface
+	vmClient        vmclientset.Interface
+	kubeClient      kubernetes.Interface
+	vmLister        vmlisters.VirtualMachineLister
+	vmListerSynced  cache.InformerSynced
+	podLister       corelisters.PodLister
+	podListerSynced cache.InformerSynced
+	vmQueue         workqueue.RateLimitingInterface
 }
 
 func NewVirtualMachineController(
 	vmClient vmclientset.Interface,
-	vmInformer virtualmachineinformers.VirtualMachineInformer,
+	kubeClient kubernetes.Interface,
+	vmInformer vminformers.VirtualMachineInformer,
+	podInformer coreinformers.PodInformer,
 ) *VirtualMachineController {
 
 	ctrl := &VirtualMachineController{
-		vmClient: vmClient,
-		vmQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "virtualmachine"),
+		vmClient:   vmClient,
+		kubeClient: kubeClient,
+		vmQueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "virtualmachine"),
 	}
 
 	vmInformer.Informer().AddEventHandler(
@@ -42,6 +56,9 @@ func NewVirtualMachineController(
 	ctrl.vmLister = vmInformer.Lister()
 	ctrl.vmListerSynced = vmInformer.Informer().HasSynced
 
+	ctrl.podLister = podInformer.Lister()
+	ctrl.podListerSynced = podInformer.Informer().HasSynced
+
 	return ctrl
 }
 
@@ -51,7 +68,7 @@ func (ctrl *VirtualMachineController) Run(workers int, stopCh <-chan struct{}) {
 	glog.Infof("Starting vm controller")
 	defer glog.Infof("Shutting down vm Controller")
 
-	if !cache.WaitForCacheSync(stopCh, ctrl.vmListerSynced) {
+	if !cache.WaitForCacheSync(stopCh, ctrl.vmListerSynced, ctrl.podListerSynced) {
 		return
 	}
 
@@ -76,6 +93,49 @@ func (ctrl *VirtualMachineController) enqueueWork(queue workqueue.Interface, obj
 	queue.Add(objName)
 }
 
+func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
+	// Find pod associated with the VM
+	pod, err := ctrl.podLister.Pods(vm.Namespace).Get(vm.Name)
+	if err == nil {
+		// Update pod (what vm spec updates can we support?)
+		glog.V(2).Infof("Pod %s/%s already exists", pod.Namespace, pod.Name)
+		return
+	}
+	if !apierrors.IsNotFound(err) {
+		glog.V(2).Infof("error getting pod %s/%s from informer: %v", vm.Namespace, vm.Name, err)
+		return
+	}
+
+	// Create pod with vm spec
+	// FIXME
+	pod, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(&corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      vm.Name,
+			Namespace: vm.Namespace,
+			Labels: map[string]string{
+				"type": "vm",
+			},
+			Annotations: map[string]string{
+				ranchervm.GroupName + "/cpu_milli": strconv.Itoa(int(vm.Spec.CpuMillis)),
+				ranchervm.GroupName + "/memory_mb": strconv.Itoa(int(vm.Spec.MemoryMB)),
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				corev1.Container{
+					Name:  "vm-in-a-pod",
+					Image: "alpine:3.7",
+					Args:  []string{"sleep", "999999"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		glog.V(2).Infof("Error creating pod %s/%s: %v", vm.Namespace, vm.Name, err)
+		return
+	}
+}
+
 func (ctrl *VirtualMachineController) worker() {
 	workFunc := func() bool {
 		keyObj, quit := ctrl.vmQueue.Get()
@@ -91,11 +151,11 @@ func (ctrl *VirtualMachineController) worker() {
 			glog.V(4).Infof("error getting name of vm %q to get vm from informer: %v", key, err)
 			return false
 		}
-		_, err = ctrl.vmLister.VirtualMachines(ns).Get(name)
+		vm, err := ctrl.vmLister.VirtualMachines(ns).Get(name)
 		if err == nil {
 			// The vm still exists in informer cache, the event must have been
 			// add/update/sync
-			// ctrl.updateVM(vm)
+			ctrl.updateVM(vm)
 			return false
 		}
 		if !apierrors.IsNotFound(err) {

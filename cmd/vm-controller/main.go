@@ -10,6 +10,8 @@ import (
 	"github.com/golang/glog"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -38,15 +40,21 @@ func main() {
 	vmClientset := versioned.NewForConfigOrDie(config)
 	vmInformerFactory := externalversions.NewSharedInformerFactory(vmClientset, 0*time.Second)
 
+	kubeClientset := kubernetes.NewForConfigOrDie(config)
+	kubeInformerFactory := informers.NewSharedInformerFactory(kubeClientset, 0*time.Second)
+
 	stopCh := makeStopChan()
 
 	go vm.NewVirtualMachineController(
 		vmClientset,
+		kubeClientset,
 		vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
+		kubeInformerFactory.Core().V1().Pods(),
 	).Run(*workers, stopCh)
 
 	vmInformerFactory.Start(stopCh)
-	
+	kubeInformerFactory.Start(stopCh)
+
 	<-stopCh
 }
 
