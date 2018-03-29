@@ -162,7 +162,7 @@ func (ctrl *VirtualMachineController) deleteVM(ns, name string) {
 	}
 
 	glog.V(2).Infof("deleting novnc service %s/%s", ns, name)
-	err = ctrl.kubeClient.CoreV1().Services(ns).Delete(name, &metav1.DeleteOptions{})
+	err = ctrl.kubeClient.CoreV1().Services(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		glog.V(2).Infof("error deleting service %s/%s: %v", ns, name, err)
 	}
