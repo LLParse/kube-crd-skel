@@ -1,7 +1,7 @@
 package vm
 
 import (
-	"strconv"
+	"math/rand"
 	"time"
 
 	"github.com/golang/glog"
@@ -15,7 +15,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/llparse/kube-crd-skel/pkg/apis/ranchervm"
 	vmapi "github.com/llparse/kube-crd-skel/pkg/apis/ranchervm/v1alpha1"
 	vmclientset "github.com/llparse/kube-crd-skel/pkg/client/clientset/versioned"
 	vminformers "github.com/llparse/kube-crd-skel/pkg/client/informers/externalversions/virtualmachine/v1alpha1"
@@ -33,6 +32,10 @@ type VirtualMachineController struct {
 
 	vmQueue  workqueue.RateLimitingInterface
 	podQueue workqueue.RateLimitingInterface
+}
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
 }
 
 func NewVirtualMachineController(
@@ -114,7 +117,7 @@ func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
 	pod, err := ctrl.podLister.Pods(vm.Namespace).Get(vm.Name)
 	if err == nil {
 		// Update pod (what vm spec updates can we support?)
-		glog.V(2).Infof("Pod %s/%s already exists", pod.Namespace, pod.Name)
+		glog.V(2).Infof("Found existing pod %s/%s", pod.Namespace, pod.Name)
 		return
 	}
 	if !apierrors.IsNotFound(err) {
@@ -122,32 +125,17 @@ func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
 		return
 	}
 
-	// Create pod with vm spec
-	// FIXME
-	pod, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(&corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      vm.Name,
-			Namespace: vm.Namespace,
-			Labels: map[string]string{
-				"type": "ranchervm",
-			},
-			Annotations: map[string]string{
-				ranchervm.GroupName + "/cpu_milli": strconv.Itoa(int(vm.Spec.CpuMillis)),
-				ranchervm.GroupName + "/memory_mb": strconv.Itoa(int(vm.Spec.MemoryMB)),
-			},
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				corev1.Container{
-					Name:  "vm-in-a-pod",
-					Image: "alpine:3.7",
-					Args:  []string{"sleep", "999999"},
-				},
-			},
-		},
-	})
+	// create vm pod
+	_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeVM(vm, "ens33"))
 	if err != nil {
-		glog.V(2).Infof("Error creating pod %s/%s: %v", vm.Namespace, vm.Name, err)
+		glog.V(2).Infof("Error creating vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
+		return
+	}
+
+	// create novnc pod
+	_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeNovncPod(vm))
+	if err != nil {
+		glog.V(2).Infof("Error creating novnc pod %s/%s: %v", vm.Namespace, vm.Name, err)
 		return
 	}
 }

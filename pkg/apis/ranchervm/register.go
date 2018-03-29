@@ -16,10 +16,10 @@ const (
 )
 
 func CreateCustomResourceDefinition(clientset apiextensionsclient.Interface) error {
-	var minCpuMilli, maxCpuMilli, minMemoryMB, maxMemoryMB float64
-	minCpuMilli = 500.0
-	maxCpuMilli = 8000.0
-	minMemoryMB = 512.0
+	var minCpus, maxCpus, minMemoryMB, maxMemoryMB float64
+	minCpus = 1.0
+	maxCpus = 8.0
+	minMemoryMB = 64.0
 	maxMemoryMB = 65536.0
 
 	crd := &apiextensionsv1beta1.CustomResourceDefinition{
@@ -41,15 +41,18 @@ func CreateCustomResourceDefinition(clientset apiextensionsclient.Interface) err
 					Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
 						"spec": apiextensionsv1beta1.JSONSchemaProps{
 							Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
-								"cpu_milli": apiextensionsv1beta1.JSONSchemaProps{
+								"cpus": apiextensionsv1beta1.JSONSchemaProps{
 									Type:    "integer",
-									Minimum: &minCpuMilli,
-									Maximum: &maxCpuMilli,
+									Minimum: &minCpus,
+									Maximum: &maxCpus,
 								},
 								"memory_mb": apiextensionsv1beta1.JSONSchemaProps{
 									Type:    "integer",
 									Minimum: &minMemoryMB,
 									Maximum: &maxMemoryMB,
+								},
+								"image": apiextensionsv1beta1.JSONSchemaProps{
+									Type: "string",
 								},
 							},
 						},

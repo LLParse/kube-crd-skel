@@ -17,10 +17,21 @@ type VirtualMachine struct {
 	Status VirtualMachineStatus `json:"status"`
 }
 
+type MachineImageType string
+
+const (
+	MachineImageAndroidX86 MachineImageType = "android-x86"
+	MachineImageCentOS MachineImageType = "centos"
+	MachineImageRancherOS MachineImageType = "rancheros"
+	MachineImageUbuntu MachineImageType = "ubuntu"
+	MachineImageWindows7 MachineImageType = "windows7"
+)
+
 // VirtualMachineSpec is the spec for a VirtualMachine resource
 type VirtualMachineSpec struct {
-	CpuMillis int32 `json:"cpu_milli"`
+	Cpus int32 `json:"cpus"`
 	MemoryMB  int32 `json:"memory_mb"`
+	MachineImage MachineImageType `json:"image"`
 }
 
 // VirtualMachineStatus is the status for a VirtualMachine resource
