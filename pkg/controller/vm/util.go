@@ -9,16 +9,6 @@ import (
   metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func makeVolumeMount(name, mountPath, subPath string, readOnly bool) corev1.VolumeMount {
-  return corev1.VolumeMount{
-    Name: name,
-    ReadOnly: readOnly,
-    MountPath: mountPath,
-    SubPath: subPath,
-    MountPropagation: nil,
-  }
-}
-
 func makeEnvVar(name, value string, valueFrom *corev1.EnvVarSource) corev1.EnvVar {
   return corev1.EnvVar{
     Name: name,
@@ -76,14 +66,26 @@ func makeVolFieldPath(name, path, fieldPath string) corev1.Volume {
   }
 }
 
+func makeVolumeMount(name, mountPath, subPath string, readOnly bool) corev1.VolumeMount {
+  return corev1.VolumeMount{
+    Name: name,
+    ReadOnly: readOnly,
+    MountPath: mountPath,
+    SubPath: subPath,
+    MountPropagation: nil,
+  }
+}
+
 var privileged = true
 
-func makeVM(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
+func makeVMPod(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
   return &corev1.Pod{
     ObjectMeta: metav1.ObjectMeta{
       Name:      vm.Name,
       Labels: map[string]string{
-        "app": vm.Name,
+        "app": "ranchervm",
+        "name": vm.Name,
+        "role": "vm",
       },
     },
     Spec: corev1.PodSpec{
@@ -107,8 +109,6 @@ func makeVM(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
           Name: "vm",
           Image: fmt.Sprintf("llparse/vm-%s", string(vm.Spec.MachineImage)),
           Command: []string{"/usr/bin/startvm"},
-          // Command: []string{"/bin/sleep"},
-          // Args: []string{"999999"},
           Env: []corev1.EnvVar{
             makeEnvVar("IFACE", iface, nil),
             makeEnvVar("MEMORY_MB", strconv.Itoa(int(vm.Spec.MemoryMB)), nil),
@@ -143,10 +143,11 @@ func makeVM(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
 func makeNovncPod(vm *v1alpha1.VirtualMachine) *corev1.Pod {
   return &corev1.Pod{
     ObjectMeta: metav1.ObjectMeta{
-      Name:      vm.Name + "-novnc",
+      Name:      vm.Name+"-novnc",
       Labels: map[string]string{
-        "app": "novnc",
-        "podname": vm.Name,
+        "app": "ranchervm",
+        "name": vm.Name,
+        "role": "novnc",
       },
     },
     Spec: corev1.PodSpec{

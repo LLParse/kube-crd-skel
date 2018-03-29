@@ -116,36 +116,43 @@ func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
 	// Find pod associated with the VM
 	pod, err := ctrl.podLister.Pods(vm.Namespace).Get(vm.Name)
 	if err == nil {
-		// Update pod (what vm spec updates can we support?)
 		glog.V(2).Infof("Found existing pod %s/%s", pod.Namespace, pod.Name)
-		return
-	}
-	if !apierrors.IsNotFound(err) {
+		// TODO check the pod against the current spec and update, if necessary
+	} else if !apierrors.IsNotFound(err) {
 		glog.V(2).Infof("error getting pod %s/%s from informer: %v", vm.Namespace, vm.Name, err)
 		return
-	}
-
-	// create vm pod
-	_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeVM(vm, "ens33"))
-	if err != nil {
-		glog.V(2).Infof("Error creating vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
-		return
+	} else {
+		// create vm pod
+		_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeVMPod(vm, "ens33"))
+		if err != nil {
+			glog.V(2).Infof("Error creating vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
+			ctrl.deleteVM(vm.Namespace, vm.Name)
+			return
+		}
 	}
 
 	// create novnc pod
 	_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeNovncPod(vm))
 	if err != nil {
 		glog.V(2).Infof("Error creating novnc pod %s/%s: %v", vm.Namespace, vm.Name, err)
+		ctrl.deleteVM(vm.Namespace, vm.Name)
 		return
 	}
 }
 
 func (ctrl *VirtualMachineController) deleteVM(ns, name string) {
+	glog.V(2).Infof("deleting vm pod %s/%s", ns, name)
 	err := ctrl.kubeClient.CoreV1().Pods(ns).Delete(name, &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		glog.V(2).Infof("error deleting pod %s/%s: %v", ns, name, err)
-		return
 	}
+
+	glog.V(2).Infof("deleting novnc pod %s/%s", ns, name)
+	err = ctrl.kubeClient.CoreV1().Pods(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		glog.V(2).Infof("error deleting pod %s/%s: %v", ns, name, err)
+	}
+
 	// TODO suppress podInformer from receiving delete event and subsequently
 	// requeueing the VM
 }
