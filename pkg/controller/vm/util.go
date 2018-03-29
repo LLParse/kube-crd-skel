@@ -122,7 +122,8 @@ func makeVMPod(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
             makeVolumeMount("dev-kvm", "/dev/kvm", "", false),
             makeVolumeMount("vm-socket", "/vm", "", false),
             makeVolumeMount("vm-fs", "/bin", "bin", true),
-            makeVolumeMount("vm-fs", "/etc", "etc", true),
+            // /etc/hosts needs to be adjusted, hence rw
+            makeVolumeMount("vm-fs", "/etc", "etc", false),
             makeVolumeMount("vm-fs", "/lib", "lib", true),
             makeVolumeMount("vm-fs", "/lib64", "lib64", true),
             makeVolumeMount("vm-fs", "/sbin", "sbin", true),

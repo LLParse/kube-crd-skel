@@ -29,6 +29,8 @@ type VirtualMachineController struct {
 	vmListerSynced  cache.InformerSynced
 	podLister       corelisters.PodLister
 	podListerSynced cache.InformerSynced
+	svcLister       corelisters.ServiceLister
+	svcListerSynced cache.InformerSynced
 
 	vmQueue  workqueue.RateLimitingInterface
 	podQueue workqueue.RateLimitingInterface
@@ -43,6 +45,7 @@ func NewVirtualMachineController(
 	kubeClient kubernetes.Interface,
 	vmInformer vminformers.VirtualMachineInformer,
 	podInformer coreinformers.PodInformer,
+	svcInformer coreinformers.ServiceInformer,
 ) *VirtualMachineController {
 
 	ctrl := &VirtualMachineController{
@@ -76,6 +79,9 @@ func NewVirtualMachineController(
 
 	ctrl.podLister = podInformer.Lister()
 	ctrl.podListerSynced = podInformer.Informer().HasSynced
+
+	ctrl.svcLister = svcInformer.Lister()
+	ctrl.svcListerSynced = svcInformer.Informer().HasSynced
 
 	return ctrl
 }
@@ -113,16 +119,15 @@ func (ctrl *VirtualMachineController) enqueueWork(queue workqueue.Interface, obj
 }
 
 func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
-	// Find pod associated with the VM
+	// handle vm pod
 	pod, err := ctrl.podLister.Pods(vm.Namespace).Get(vm.Name)
 	if err == nil {
-		glog.V(2).Infof("Found existing pod %s/%s", pod.Namespace, pod.Name)
+		glog.V(2).Infof("Found existing vm pod %s/%s", pod.Namespace, pod.Name)
 		// TODO check the pod against the current spec and update, if necessary
 	} else if !apierrors.IsNotFound(err) {
-		glog.V(2).Infof("error getting pod %s/%s from informer: %v", vm.Namespace, vm.Name, err)
+		glog.V(2).Infof("error getting vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
 		return
 	} else {
-		// create vm pod
 		_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeVMPod(vm, "ens33"))
 		if err != nil {
 			glog.V(2).Infof("Error creating vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
@@ -131,20 +136,38 @@ func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
 		}
 	}
 
-	// create novnc pod
-	_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeNovncPod(vm))
-	if err != nil {
-		glog.V(2).Infof("Error creating novnc pod %s/%s: %v", vm.Namespace, vm.Name, err)
-		ctrl.deleteVM(vm.Namespace, vm.Name)
+	// handle novnc pod
+	pod, err = ctrl.podLister.Pods(vm.Namespace).Get(vm.Name+"-novnc")
+	switch {
+	case err == nil:
+		glog.V(2).Infof("Found existing novnc pod %s/%s", pod.Namespace, pod.Name)
+	case !apierrors.IsNotFound(err):
+		glog.V(2).Infof("error getting novnc pod %s/%s: %v", vm.Namespace, vm.Name, err)
 		return
+	default:
+		_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeNovncPod(vm))
+		if err != nil {
+			glog.V(2).Infof("Error creating novnc pod %s/%s: %v", vm.Namespace, vm.Name, err)
+			ctrl.deleteVM(vm.Namespace, vm.Name)
+			return
+		}
 	}
 
-	// create novnc service
-	_, err = ctrl.kubeClient.CoreV1().Services(vm.Namespace).Create(makeNovncService(vm))
-	if err != nil {
-		glog.V(2).Infof("Error creating novnc service %s/%s: %v", vm.Namespace, vm.Name, err)
-		ctrl.deleteVM(vm.Namespace, vm.Name)
+	// handle novnc service
+	svc, err := ctrl.svcLister.Services(vm.Namespace).Get(vm.Name+"-novnc")
+	switch {
+	case err == nil:
+		glog.V(2).Infof("Found existing novnc svc %s/%s", svc.Namespace, svc.Name)
+	case !apierrors.IsNotFound(err):
+		glog.V(2).Infof("error getting novnc svc %s/%s: %v", vm.Namespace, vm.Name, err)
 		return
+	default:
+		_, err = ctrl.kubeClient.CoreV1().Services(vm.Namespace).Create(makeNovncService(vm))
+		if err != nil {
+			glog.V(2).Infof("Error creating novnc svc %s/%s: %v", vm.Namespace, vm.Name, err)
+			ctrl.deleteVM(vm.Namespace, vm.Name)
+			return
+		}
 	}
 }
 
@@ -235,7 +258,7 @@ func (ctrl *VirtualMachineController) podWorker() {
 
 func (ctrl *VirtualMachineController) podFilterFunc(obj interface{}) bool {
 	if pod, ok := obj.(*corev1.Pod); ok {
-		if podType, ok := pod.Labels["type"]; ok && podType == "ranchervm" {
+		if podType, ok := pod.Labels["app"]; ok && podType == "ranchervm" {
 			return true
 		}
 	}

@@ -50,6 +50,7 @@ func main() {
 		kubeClientset,
 		vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
 		kubeInformerFactory.Core().V1().Pods(),
+		kubeInformerFactory.Core().V1().Services(),
 	).Run(*workers, stopCh)
 
 	vmInformerFactory.Start(stopCh)
