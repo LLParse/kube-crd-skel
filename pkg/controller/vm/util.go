@@ -140,6 +140,28 @@ func makeVMPod(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
   }
 }
 
+func makeNovncService(vm *v1alpha1.VirtualMachine) *corev1.Service {
+  return &corev1.Service{
+    ObjectMeta: metav1.ObjectMeta{
+      Name:      vm.Name+"-novnc",
+    },
+    Spec: corev1.ServiceSpec{
+      Ports: []corev1.ServicePort{
+        corev1.ServicePort{
+          Name: "novnc",
+          Port: 6080,
+        },
+      },
+      Selector: map[string]string{
+        "app": "ranchervm",
+        "name": vm.Name,
+        "role": "novnc",
+      },
+      Type: corev1.ServiceTypeNodePort,
+    },
+  }
+}
+
 func makeNovncPod(vm *v1alpha1.VirtualMachine) *corev1.Pod {
   return &corev1.Pod{
     ObjectMeta: metav1.ObjectMeta{

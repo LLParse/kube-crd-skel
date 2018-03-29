@@ -138,6 +138,14 @@ func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
 		ctrl.deleteVM(vm.Namespace, vm.Name)
 		return
 	}
+
+	// create novnc service
+	_, err = ctrl.kubeClient.CoreV1().Services(vm.Namespace).Create(makeNovncService(vm))
+	if err != nil {
+		glog.V(2).Infof("Error creating novnc service %s/%s: %v", vm.Namespace, vm.Name, err)
+		ctrl.deleteVM(vm.Namespace, vm.Name)
+		return
+	}
 }
 
 func (ctrl *VirtualMachineController) deleteVM(ns, name string) {
@@ -151,6 +159,12 @@ func (ctrl *VirtualMachineController) deleteVM(ns, name string) {
 	err = ctrl.kubeClient.CoreV1().Pods(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		glog.V(2).Infof("error deleting pod %s/%s: %v", ns, name, err)
+	}
+
+	glog.V(2).Infof("deleting novnc service %s/%s", ns, name)
+	err = ctrl.kubeClient.CoreV1().Services(ns).Delete(name, &metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		glog.V(2).Infof("error deleting service %s/%s: %v", ns, name, err)
 	}
 
 	// TODO suppress podInformer from receiving delete event and subsequently

@@ -4,5 +4,5 @@ metadata:
   name: example-centos
 spec:
   cpus: 1
-  memory_mb: 256
+  memory_mb: 512
   image: centos

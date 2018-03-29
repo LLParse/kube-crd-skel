@@ -1,8 +1,8 @@
 apiVersion: vm.rancher.com/v1alpha1
 kind: VirtualMachine
 metadata:
-  name: ubuntu1
+  name: example-windows7-2
 spec:
-  cpus: 1
-  memory_mb: 512
-  image: ubuntu
+  cpus: 2
+  memory_mb: 2048
+  image: windows7
