@@ -122,7 +122,8 @@ func makeVMPod(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
             makeVolumeMount("dev-kvm", "/dev/kvm", "", false),
             makeVolumeMount("vm-socket", "/vm", "", false),
             makeVolumeMount("vm-fs", "/bin", "bin", true),
-            // /etc/hosts needs to be adjusted, hence rw
+            // kubernetes mounts /etc/hosts, /etc/hostname, /etc/resolv.conf
+            // we must grant write permissions to /etc to allow these mounts
             makeVolumeMount("vm-fs", "/etc", "etc", false),
             makeVolumeMount("vm-fs", "/lib", "lib", true),
             makeVolumeMount("vm-fs", "/lib64", "lib64", true),

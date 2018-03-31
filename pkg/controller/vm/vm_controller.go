@@ -92,7 +92,7 @@ func (ctrl *VirtualMachineController) Run(workers int, stopCh <-chan struct{}) {
 	glog.Infof("Starting vm controller")
 	defer glog.Infof("Shutting down vm Controller")
 
-	if !cache.WaitForCacheSync(stopCh, ctrl.vmListerSynced, ctrl.podListerSynced) {
+	if !cache.WaitForCacheSync(stopCh, ctrl.vmListerSynced, ctrl.podListerSynced, ctrl.svcListerSynced) {
 		return
 	}
 
@@ -157,14 +157,14 @@ func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
 	svc, err := ctrl.svcLister.Services(vm.Namespace).Get(vm.Name+"-novnc")
 	switch {
 	case err == nil:
-		glog.V(2).Infof("Found existing novnc svc %s/%s", svc.Namespace, svc.Name)
+		glog.V(2).Infof("Found existing novnc service %s/%s", svc.Namespace, svc.Name)
 	case !apierrors.IsNotFound(err):
-		glog.V(2).Infof("error getting novnc svc %s/%s: %v", vm.Namespace, vm.Name, err)
+		glog.V(2).Infof("error getting novnc service %s/%s: %v", vm.Namespace, vm.Name, err)
 		return
 	default:
 		_, err = ctrl.kubeClient.CoreV1().Services(vm.Namespace).Create(makeNovncService(vm))
 		if err != nil {
-			glog.V(2).Infof("Error creating novnc svc %s/%s: %v", vm.Namespace, vm.Name, err)
+			glog.V(2).Infof("Error creating novnc service %s/%s: %v", vm.Namespace, vm.Name, err)
 			ctrl.deleteVM(vm.Namespace, vm.Name)
 			return
 		}
@@ -175,19 +175,19 @@ func (ctrl *VirtualMachineController) deleteVM(ns, name string) {
 	glog.V(2).Infof("deleting vm pod %s/%s", ns, name)
 	err := ctrl.kubeClient.CoreV1().Pods(ns).Delete(name, &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		glog.V(2).Infof("error deleting pod %s/%s: %v", ns, name, err)
+		glog.V(2).Infof("error deleting vm pod %s/%s: %v", ns, name, err)
 	}
 
 	glog.V(2).Infof("deleting novnc pod %s/%s", ns, name)
 	err = ctrl.kubeClient.CoreV1().Pods(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		glog.V(2).Infof("error deleting pod %s/%s: %v", ns, name, err)
+		glog.V(2).Infof("error deleting novnc pod %s/%s: %v", ns, name, err)
 	}
 
 	glog.V(2).Infof("deleting novnc service %s/%s", ns, name)
 	err = ctrl.kubeClient.CoreV1().Services(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		glog.V(2).Infof("error deleting service %s/%s: %v", ns, name, err)
+		glog.V(2).Infof("error deleting novnc service %s/%s: %v", ns, name, err)
 	}
 
 	// TODO suppress podInformer from receiving delete event and subsequently
@@ -221,7 +221,7 @@ func (ctrl *VirtualMachineController) vmWorker() {
 			return false
 		}
 
-		// The volume is not in informer cache, the event must have been
+		// The vm is not in informer cache, the event must have been
 		// delete
 		ctrl.deleteVM(ns, name)
 		return false

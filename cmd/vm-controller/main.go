@@ -19,6 +19,7 @@ import (
 	"github.com/llparse/kube-crd-skel/pkg/client/clientset/versioned"
 	"github.com/llparse/kube-crd-skel/pkg/client/informers/externalversions"
 	"github.com/llparse/kube-crd-skel/pkg/controller/vm"
+	"github.com/llparse/kube-crd-skel/pkg/server"
 )
 
 func main() {
@@ -52,6 +53,10 @@ func main() {
 		kubeInformerFactory.Core().V1().Pods(),
 		kubeInformerFactory.Core().V1().Services(),
 	).Run(*workers, stopCh)
+
+	go server.NewServer(
+		vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
+	).Run(stopCh)
 
 	vmInformerFactory.Start(stopCh)
 	kubeInformerFactory.Start(stopCh)

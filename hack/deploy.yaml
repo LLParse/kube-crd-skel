@@ -22,4 +22,16 @@ spec:
       containers:
       - name: vm-controller
         image: docker.io/llparse/ranchervm-controller:dev
-        imagePullPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vm-controller
+spec:
+  ports:
+  - name: api
+    port: 9500
+  selector:
+    app: vm-controller
+  # TODO should be ClusterIP (internal only)
+  type: NodePort
