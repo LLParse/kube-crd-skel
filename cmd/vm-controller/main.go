@@ -55,6 +55,7 @@ func main() {
 	).Run(*workers, stopCh)
 
 	go server.NewServer(
+		vmClientset,
 		vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
 	).Run(stopCh)
 

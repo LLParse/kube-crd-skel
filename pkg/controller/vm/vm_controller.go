@@ -103,7 +103,7 @@ func (ctrl *VirtualMachineController) Run(workers int, stopCh <-chan struct{}) {
 	for i := 0; i < workers; i++ {
 		go wait.Until(ctrl.vmWorker, time.Second, stopCh)
 	}
-	// go wait.Until(ctrl.podWorker, time.Second, stopCh)
+	go wait.Until(ctrl.podWorker, time.Second, stopCh)
 
 	<-stopCh
 }
@@ -195,72 +195,78 @@ func (ctrl *VirtualMachineController) updateNovncService(vm *vmapi.VirtualMachin
 	return
 }
 
+func (ctrl *VirtualMachineController) updateVMStatus(current *vmapi.VirtualMachine, updated *vmapi.VirtualMachine) (err error) {
+	if current.Status.State != updated.Status.State {
+		updated, err = ctrl.vmClient.VirtualmachineV1alpha1().VirtualMachines(updated.Namespace).Update(updated)
+	}
+	return
+}
+
+func (ctrl *VirtualMachineController) startVM(vm *vmapi.VirtualMachine) (err error) {
+	if err = ctrl.updateVmPod(vm); err != nil {
+		glog.Warningf("error updating vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
+		return
+	}
+	if err = ctrl.updateNovncPod(vm); err != nil {
+		glog.Warningf("error updating novnc pod %s/%s: %v", vm.Namespace, vm.Name, err)
+		return
+	}
+	if err = ctrl.updateNovncService(vm); err != nil {
+		glog.Warningf("error updating vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
+		return
+	}	
+}
+
+func (ctrl *VirtualMachineController) stopVM(vm *vmapi.VirtualMachine) (err error) {
+	vm2 := vm.DeepCopy()
+	err = ctrl.deleteVmPod(vm.Namespace, vm.Name)
+	switch {
+	case err == nil:
+		vm2.Status.State = vmapi.StateTerminating
+	case apierrors.IsNotFound(err):
+		vm2.Status.State = vmapi.StateTerminated
+	default:
+		vm2.Status.State = vmapi.StateError
+	}
+	err = ctrl.updateVMStatus(vm, vm2)
+	return
+}
+
 func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
 	switch vm.Spec.Action {
 	case vmapi.ActionStart:
-		if err := ctrl.updateVmPod(vm); err != nil {
-			glog.Warningf("error updating vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
-			return
-		}
-		if err := ctrl.updateNovncPod(vm); err != nil {
-			glog.Warningf("error updating novnc pod %s/%s: %v", vm.Namespace, vm.Name, err)
-			return
-		}
-		if err := ctrl.updateNovncService(vm); err != nil {
-			glog.Warningf("error updating vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
-			return
-		}
-
+		ctrl.startVM(vm)
 	case vmapi.ActionStop:
-		ctrl.deleteVmPod(vm)
+		ctrl.stopVM(vm)
 	default:
 		glog.Warningf("detected vm %s/%s with invalid action \"%s\"", vm.Namespace, vm.Name, vm.Spec.Action)
 		return
 	}
 }
 
-func (ctrl *VirtualMachineController) deleteVmPod(vm *vmapi.VirtualMachine) (err error) {
-	vm2 := vm.DeepCopy()
-
-	_, err = ctrl.podLister.Pods(vm.Namespace).Get(vm.Name)
-	if err == nil {
-		glog.V(2).Infof("deleting vm pod %s/%s", vm.Namespace, vm.Name)
-
-		err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Delete(vm.Name, &metav1.DeleteOptions{})
-		if err == nil {
-			vm2.Status.State = vmapi.StateTerminating
-		} else if err != nil && apierrors.IsNotFound(err) {
-			vm2.Status.State = vmapi.StateTerminated			
-		} else {
-			glog.Warningf("error deleting vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
-			vm2.Status.State = vmapi.StateError
-		}
-	} else if apierrors.IsNotFound(err) {
-		vm2.Status.State = vmapi.StateTerminated
-	} else {
-		glog.Warningf("error getting vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
-		vm2.Status.State = vmapi.StateError
-	}
-
-	if vm.Status.State != vm2.Status.State {
-		vm2, err = ctrl.vmClient.VirtualmachineV1alpha1().VirtualMachines(vm2.Namespace).Update(vm2)
+func (ctrl *VirtualMachineController) deleteVmPod(ns, name string) (err error) {
+	if _, err = ctrl.podLister.Pods(ns).Get(name); err == nil {
+		glog.V(2).Infof("trying to delete vm pod %s/%s", ns, name)
+		// TODO soft delete?
+		err = ctrl.kubeClient.CoreV1().Pods(ns).Delete(name, &metav1.DeleteOptions{})		
 	}
 	return
 }
 
-func (ctrl *VirtualMachineController) deleteVM(vm *vmapi.VirtualMachine) {
-	ctrl.deleteVmPod(vm)
+// do NOT use VM object in method signature
+func (ctrl *VirtualMachineController) deleteVM(ns, name string) {
+	ctrl.deleteVmPod(ns, name)
 
-	glog.V(2).Infof("deleting novnc pod %s/%s", vm.Namespace, vm.Name)
-	err := ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Delete(vm.Name+"-novnc", &metav1.DeleteOptions{})
+	glog.V(2).Infof("deleting novnc pod %s/%s", ns, name)
+	err := ctrl.kubeClient.CoreV1().Pods(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		glog.V(2).Infof("error deleting novnc pod %s/%s: %v", vm.Namespace, vm.Name, err)
+		glog.V(2).Infof("error deleting novnc pod %s/%s: %v", ns, name, err)
 	}
 
-	glog.V(2).Infof("deleting novnc service %s/%s", vm.Namespace, vm.Name)
-	err = ctrl.kubeClient.CoreV1().Services(vm.Namespace).Delete(vm.Name+"-novnc", &metav1.DeleteOptions{})
+	glog.V(2).Infof("deleting novnc service %s/%s", ns, name)
+	err = ctrl.kubeClient.CoreV1().Services(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		glog.V(2).Infof("error deleting novnc service %s/%s: %v", vm.Namespace, vm.Name, err)
+		glog.V(2).Infof("error deleting novnc service %s/%s: %v", ns, name, err)
 	}
 
 	// TODO suppress podInformer from receiving delete event and subsequently
@@ -296,7 +302,7 @@ func (ctrl *VirtualMachineController) vmWorker() {
 
 		// The vm is not in informer cache, the event must have been
 		// delete
-		ctrl.deleteVM(vm)
+		ctrl.deleteVM(ns, name)
 		return false
 	}
 	for {
@@ -317,9 +323,22 @@ func (ctrl *VirtualMachineController) podWorker() {
 		key := keyObj.(string)
 		glog.V(5).Infof("podWorker[%s]", key)
 
+		ns, name, err := cache.SplitMetaNamespaceKey(key)
+		if err != nil {
+			glog.V(4).Infof("error getting name of vm %q to get vm from informer: %v", key, err)
+			return false
+		}
+		_, err = ctrl.podLister.Pods(ns).Get(name)
+		if err == nil {
+			glog.V(5).Infof("enqueued %q for sync", keyObj)
+			ctrl.vmQueue.Add(keyObj)
+		} else if apierrors.IsNotFound(err) {
+			glog.V(5).Infof("enqueued %q for sync", keyObj)
+			ctrl.vmQueue.Add(keyObj)
+		} else {
+			glog.Warningf("error getting pod %q from informer: %v", key, err)
+		}
 
-		glog.V(5).Infof("enqueued %q for sync", keyObj)
-		ctrl.vmQueue.Add(keyObj)
 		return false
 	}
 	for {
@@ -332,8 +351,10 @@ func (ctrl *VirtualMachineController) podWorker() {
 
 func (ctrl *VirtualMachineController) podFilterFunc(obj interface{}) bool {
 	if pod, ok := obj.(*corev1.Pod); ok {
-		if podType, ok := pod.Labels["app"]; ok && podType == "ranchervm" {
-			return true
+		if app, ok := pod.Labels["app"]; ok && app == "ranchervm" {
+			if role, ok := pod.Labels["role"]; ok && role == "vm" {
+				return true
+			}
 		}
 	}
 	return false
