@@ -244,8 +244,9 @@ func (ctrl *VirtualMachineController) podWorker() {
 		key := keyObj.(string)
 		glog.V(5).Infof("podWorker[%s]", key)
 
-		glog.V(5).Infof("enqueued %q for sync", keyObj)
-		ctrl.vmQueue.Add(keyObj)
+
+		// glog.V(5).Infof("enqueued %q for sync", keyObj)
+		// ctrl.vmQueue.Add(keyObj)
 		return false
 	}
 	for {

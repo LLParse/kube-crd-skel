@@ -34,9 +34,28 @@ type VirtualMachineSpec struct {
 	MachineImage MachineImageType `json:"image"`
 }
 
+type StateType string
+
+const (
+	// StatePending indicates a VM is booting
+	StatePending StateType = "pending"
+	// StateRunning indicates a VM is running. The vnc port and/or ssh port
+	// must be accessible for a VM in this state.
+	StateRunning StateType = "running"
+	// StateStopping indicates a VM is gracefully shutting down
+	StateStopping StateType = "stopping"
+	// StateStopped indicates an already-created VM is not currently running
+	StateStopped StateType = "stopped"
+	// StateTerminating indicates the VM is being deleted
+	StateTerminating StateType = "terminating"
+	// StateTerminated indicates the VM is deleted. The Root block device
+	// belonging to the VM may or may not be deleted.
+	StateTerminated StateType = "terminated"
+)
+
 // VirtualMachineStatus is the status for a VirtualMachine resource
 type VirtualMachineStatus struct {
-	Running bool `json:"running"`
+	State StateType `json:"state"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -59,8 +59,6 @@ func (s *server) InstanceList(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  glog.Infof("Found %d vms", len(vms))
-
   resp, err := json.Marshal(InstanceList{
     Instances: vms,
   })
