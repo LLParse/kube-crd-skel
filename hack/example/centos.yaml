@@ -3,6 +3,7 @@ kind: VirtualMachine
 metadata:
   name: example-centos
 spec:
+  action: start
   cpus: 1
   memory_mb: 512
   image: centos

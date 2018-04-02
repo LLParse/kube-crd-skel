@@ -3,6 +3,7 @@ kind: VirtualMachine
 metadata:
   name: example-windows7-2
 spec:
+  action: start
   cpus: 1
   memory_mb: 1024
   image: windows7

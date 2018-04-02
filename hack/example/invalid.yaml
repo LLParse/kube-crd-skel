@@ -3,6 +3,6 @@ kind: VirtualMachine
 metadata:
   name: example
 spec:
-  cpus: 9
+  cpus: 161
   memory_mb: 1024
 

@@ -27,11 +27,20 @@ const (
 	MachineImageWindows7 MachineImageType = "windows7"
 )
 
+type ActionType string
+
+const (
+	ActionStart ActionType = "start"
+	ActionStop ActionType = "stop"
+	ActionReboot ActionType = "reboot"
+)
+
 // VirtualMachineSpec is the spec for a VirtualMachine resource
 type VirtualMachineSpec struct {
 	Cpus int32 `json:"cpus"`
 	MemoryMB  int32 `json:"memory_mb"`
 	MachineImage MachineImageType `json:"image"`
+	Action ActionType `json:"action"`
 }
 
 type StateType string
