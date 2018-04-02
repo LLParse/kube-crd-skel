@@ -79,6 +79,27 @@ func makeVolumeMount(name, mountPath, subPath string, readOnly bool) corev1.Volu
 var privileged = true
 
 func makeVMPod(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
+  cpu := strconv.Itoa(int(vm.Spec.Cpus))
+  mem := strconv.Itoa(int(vm.Spec.MemoryMB))
+  image := string(vm.Spec.MachineImage)
+
+  vncProbe := &corev1.Probe{
+    Handler: corev1.Handler{
+      Exec: &corev1.ExecAction{
+        Command: []string{
+          "/bin/sh",
+          "-c",
+          "[ -S /vm/${MY_POD_NAMESPACE}_${MY_POD_NAME}.sock ]",
+        },
+      },
+    },
+    InitialDelaySeconds: 2,
+    TimeoutSeconds: 2,
+    PeriodSeconds: 3,
+    SuccessThreshold: 1,
+    FailureThreshold: 10,
+  }
+
   return &corev1.Pod{
     ObjectMeta: metav1.ObjectMeta{
       Name:      vm.Name,
@@ -86,6 +107,11 @@ func makeVMPod(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
         "app": "ranchervm",
         "name": vm.Name,
         "role": "vm",
+      },
+      Annotations: map[string]string{
+        "cpus": cpu,
+        "memory_mb": mem,
+        "image": image,
       },
     },
     Spec: corev1.PodSpec{
@@ -111,8 +137,8 @@ func makeVMPod(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
           Command: []string{"/usr/bin/startvm"},
           Env: []corev1.EnvVar{
             makeEnvVar("IFACE", iface, nil),
-            makeEnvVar("MEMORY_MB", strconv.Itoa(int(vm.Spec.MemoryMB)), nil),
-            makeEnvVar("CPUS", strconv.Itoa(int(vm.Spec.Cpus)), nil),
+            makeEnvVar("MEMORY_MB", mem, nil),
+            makeEnvVar("CPUS", cpu, nil),
             // Use downward API so we can uniquely name VNC socket
             makeEnvVarFieldPath("MY_POD_NAME", "metadata.name"),
             makeEnvVarFieldPath("MY_POD_NAMESPACE", "metadata.namespace"),
@@ -131,6 +157,9 @@ func makeVMPod(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
             makeVolumeMount("vm-fs", "/usr", "usr", true),
             makeVolumeMount("vm-fs", "/var", "var", true),            
           },
+          LivenessProbe: vncProbe,
+          // TODO readinessProbe could be used for checking SSH/RDP/etc
+          ReadinessProbe: vncProbe,
           // ImagePullPolicy: corev1.PullPolicy{},
           SecurityContext: &corev1.SecurityContext{
             Privileged: &privileged,

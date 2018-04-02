@@ -21,6 +21,8 @@ import (
 	vmlisters "github.com/llparse/kube-crd-skel/pkg/client/listers/virtualmachine/v1alpha1"
 )
 
+var IFACE = "ens33"
+
 type VirtualMachineController struct {
 	vmClient   vmclientset.Interface
 	kubeClient kubernetes.Interface
@@ -74,6 +76,8 @@ func NewVirtualMachineController(
 		},
 	)
 
+	// TODO handle service resource events
+
 	ctrl.vmLister = vmInformer.Lister()
 	ctrl.vmListerSynced = vmInformer.Informer().HasSynced
 
@@ -99,7 +103,7 @@ func (ctrl *VirtualMachineController) Run(workers int, stopCh <-chan struct{}) {
 	for i := 0; i < workers; i++ {
 		go wait.Until(ctrl.vmWorker, time.Second, stopCh)
 	}
-	go wait.Until(ctrl.podWorker, time.Second, stopCh)
+	// go wait.Until(ctrl.podWorker, time.Second, stopCh)
 
 	<-stopCh
 }
@@ -118,8 +122,7 @@ func (ctrl *VirtualMachineController) enqueueWork(queue workqueue.Interface, obj
 	queue.Add(objName)
 }
 
-func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
-	// handle vm pod
+func (ctrl *VirtualMachineController) updateVmPod(vm *vmapi.VirtualMachine) (err error) {
 	pod, err := ctrl.podLister.Pods(vm.Namespace).Get(vm.Name)
 	if err == nil {
 		glog.V(2).Infof("Found existing vm pod %s/%s", pod.Namespace, pod.Name)
@@ -128,16 +131,18 @@ func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
 		glog.V(2).Infof("error getting vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
 		return
 	} else {
-		_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeVMPod(vm, "ens33"))
+		_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeVMPod(vm, IFACE))
 		if err != nil {
 			glog.V(2).Infof("Error creating vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
 			ctrl.deleteVM(vm.Namespace, vm.Name)
 			return
 		}
 	}
+	return
+}
 
-	// handle novnc pod
-	pod, err = ctrl.podLister.Pods(vm.Namespace).Get(vm.Name+"-novnc")
+func (ctrl *VirtualMachineController) updateNovncPod(vm *vmapi.VirtualMachine) (err error) {
+	pod, err := ctrl.podLister.Pods(vm.Namespace).Get(vm.Name+"-novnc")
 	switch {
 	case err == nil:
 		glog.V(2).Infof("Found existing novnc pod %s/%s", pod.Namespace, pod.Name)
@@ -152,8 +157,10 @@ func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
 			return
 		}
 	}
+	return
+}
 
-	// handle novnc service
+func (ctrl *VirtualMachineController) updateNovncService(vm *vmapi.VirtualMachine) (err error) {
 	svc, err := ctrl.svcLister.Services(vm.Namespace).Get(vm.Name+"-novnc")
 	switch {
 	case err == nil:
@@ -169,6 +176,20 @@ func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
 			return
 		}
 	}
+	return
+}
+
+func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
+	switch vm.Status.State {
+	case vmapi.StatePending:
+		fallthrough
+	default:
+		// create/update the pod
+	}
+
+	ctrl.updateVmPod(vm)
+	ctrl.updateNovncPod(vm)
+	ctrl.updateNovncService(vm)
 }
 
 func (ctrl *VirtualMachineController) deleteVM(ns, name string) {
@@ -245,8 +266,8 @@ func (ctrl *VirtualMachineController) podWorker() {
 		glog.V(5).Infof("podWorker[%s]", key)
 
 
-		// glog.V(5).Infof("enqueued %q for sync", keyObj)
-		// ctrl.vmQueue.Add(keyObj)
+		glog.V(5).Infof("enqueued %q for sync", keyObj)
+		ctrl.vmQueue.Add(keyObj)
 		return false
 	}
 	for {
