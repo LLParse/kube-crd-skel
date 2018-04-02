@@ -60,6 +60,9 @@ const (
 	// StateTerminated indicates the VM is deleted. The Root block device
 	// belonging to the VM may or may not be deleted.
 	StateTerminated StateType = "terminated"
+	// StateError indicates something went horribly wrong and we are not sure
+	// how to proceed
+	StateError StateType = "error"
 )
 
 // VirtualMachineStatus is the status for a VirtualMachine resource
