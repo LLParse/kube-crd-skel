@@ -154,9 +154,7 @@ func (ctrl *VirtualMachineController) updateVmPod(vm *vmapi.VirtualMachine) (err
 		}
 	}
 
-	if vm.Status.State != vm2.Status.State {
-		vm2, err = ctrl.vmClient.VirtualmachineV1alpha1().VirtualMachines(vm2.Namespace).Update(vm2)
-	}
+	err = ctrl.updateVMStatus(vm, vm2)
 	return
 }
 
@@ -200,14 +198,15 @@ func (ctrl *VirtualMachineController) updateNovncService(vm *vmapi.VirtualMachin
 		vm2.Status.VncEndpoint = fmt.Sprintf("%s:%d", nodeHostname, svc.Spec.Ports[0].NodePort)
 	}
 
-	if vm.Status.VncEndpoint != vm2.Status.VncEndpoint {
-		vm2, err = ctrl.vmClient.VirtualmachineV1alpha1().VirtualMachines(vm2.Namespace).Update(vm2)
-	}
+	err = ctrl.updateVMStatus(vm, vm2)
 	return
 }
 
 func (ctrl *VirtualMachineController) updateVMStatus(current *vmapi.VirtualMachine, updated *vmapi.VirtualMachine) (err error) {
-	if current.Status.State != updated.Status.State {
+	if current.Status.State != updated.Status.State || 
+			current.Status.VncEndpoint != updated.Status.VncEndpoint ||
+			current.Status.ID != updated.Status.ID || 
+			current.Status.MAC != updated.Status.MAC {
 		updated, err = ctrl.vmClient.VirtualmachineV1alpha1().VirtualMachines(updated.Namespace).Update(updated)
 	}
 	return
@@ -234,9 +233,9 @@ func (ctrl *VirtualMachineController) stopVM(vm *vmapi.VirtualMachine) (err erro
 	err = ctrl.deleteVmPod(vm.Namespace, vm.Name)
 	switch {
 	case err == nil:
-		vm2.Status.State = vmapi.StateTerminating
+		vm2.Status.State = vmapi.StateStopping
 	case apierrors.IsNotFound(err):
-		vm2.Status.State = vmapi.StateTerminated
+		vm2.Status.State = vmapi.StateStopped
 	default:
 		vm2.Status.State = vmapi.StateError
 	}
@@ -245,6 +244,15 @@ func (ctrl *VirtualMachineController) stopVM(vm *vmapi.VirtualMachine) (err erro
 }
 
 func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
+	// set the instance id and mac address if not present
+	if vm.Status.ID == "" || vm.Status.MAC == "" {
+		vm2 := vm.DeepCopy()
+		uid := string(vm.UID)
+		vm2.Status.ID = fmt.Sprintf("i-%s", uid[:8])
+		vm2.Status.MAC = fmt.Sprintf("06:fe:%s:%s:%s:%s", uid[:2], uid[2:4], uid[4:6], uid[6:8])
+		ctrl.updateVMStatus(vm, vm2)
+	}
+
 	switch vm.Spec.Action {
 	case vmapi.ActionStart:
 		ctrl.startVM(vm)

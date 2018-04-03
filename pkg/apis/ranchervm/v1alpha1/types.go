@@ -67,8 +67,16 @@ const (
 
 // VirtualMachineStatus is the status for a VirtualMachine resource
 type VirtualMachineStatus struct {
+	// State is the current state of the virtual machine
 	State StateType `json:"state"`
+	// VncEndpoint is an endpoint exposing a NoVNC webserver
 	VncEndpoint string `json:"vnc_endpoint"`
+	// ID is an external unique identifier for the virtual machine. It is derived
+	// from the metadata uid field.
+	ID string `json:"id"`
+	// MAC address we will assign to a guest NIC, if necessary. It is derived
+	// from the metadata uid field.
+	MAC string `json:"mac"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
