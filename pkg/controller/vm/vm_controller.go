@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -178,19 +179,29 @@ func (ctrl *VirtualMachineController) updateNovncPod(vm *vmapi.VirtualMachine) (
 }
 
 func (ctrl *VirtualMachineController) updateNovncService(vm *vmapi.VirtualMachine) (err error) {
+	vm2 := vm.DeepCopy()
+	// FIXME shouldn't be hardcoded
+	nodeHostname := "kvm.local"
+
 	svc, err := ctrl.svcLister.Services(vm.Namespace).Get(vm.Name+"-novnc")
 	switch {
 	case err == nil:
 		glog.V(2).Infof("Found existing novnc service %s/%s", svc.Namespace, svc.Name)
+		vm2.Status.VncEndpoint = fmt.Sprintf("%s:%d", nodeHostname, svc.Spec.Ports[0].NodePort)
 	case !apierrors.IsNotFound(err):
 		glog.V(2).Infof("error getting novnc service %s/%s: %v", vm.Namespace, vm.Name, err)
 		return
 	default:
-		_, err = ctrl.kubeClient.CoreV1().Services(vm.Namespace).Create(makeNovncService(vm))
+		svc, err = ctrl.kubeClient.CoreV1().Services(vm.Namespace).Create(makeNovncService(vm))
 		if err != nil {
 			glog.V(2).Infof("Error creating novnc service %s/%s: %v", vm.Namespace, vm.Name, err)
 			return
 		}
+		vm2.Status.VncEndpoint = fmt.Sprintf("%s:%d", nodeHostname, svc.Spec.Ports[0].NodePort)
+	}
+
+	if vm.Status.VncEndpoint != vm2.Status.VncEndpoint {
+		vm2, err = ctrl.vmClient.VirtualmachineV1alpha1().VirtualMachines(vm2.Namespace).Update(vm2)
 	}
 	return
 }

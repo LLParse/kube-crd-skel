@@ -68,6 +68,7 @@ const (
 // VirtualMachineStatus is the status for a VirtualMachine resource
 type VirtualMachineStatus struct {
 	State StateType `json:"state"`
+	VncEndpoint string `json:"vnc_endpoint"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
