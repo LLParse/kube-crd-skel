@@ -214,7 +214,8 @@ func (ctrl *VirtualMachineController) startVM(vm *vmapi.VirtualMachine) (err err
 	if err = ctrl.updateNovncService(vm); err != nil {
 		glog.Warningf("error updating vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
 		return
-	}	
+	}
+	return
 }
 
 func (ctrl *VirtualMachineController) stopVM(vm *vmapi.VirtualMachine) (err error) {

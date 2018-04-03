@@ -3,6 +3,7 @@ package server
 import (
   "encoding/json"
   "net/http"
+  "strconv"
 
   "github.com/golang/glog"
   "github.com/gorilla/mux"
@@ -46,25 +47,10 @@ func (s *server) Run(stopCh <-chan struct{}) {
 func (s *server) newRouter() *mux.Router {
   r := mux.NewRouter().StrictSlash(true)
 
-  // r.Methods("GET").Path("/").Handler(versionsHandler)
-  // r.Methods("GET").Path("/version").Handler(versionHandler)
   r.Methods("GET").Path("/v1/instances").Handler(http.HandlerFunc(s.InstanceList))
   r.Methods("POST").Path("/v1/instances").Handler(http.HandlerFunc(s.InstanceCreate))
   r.Methods("DELETE").Path("/v1/instances/{ns}/{name}").Handler(http.HandlerFunc(s.InstanceDelete))
   return r
-}
-
-func (s *server) InstanceDelete(w http.ResponseWriter, r *http.Request) {
-  ns := mux.Vars(r)["ns"]
-  name := mux.Vars(r)["name"]
-
-  err := s.vmClient.VirtualmachineV1alpha1().VirtualMachines(ns).Delete(name, &metav1.DeleteOptions{})
-  if err != nil {
-    w.WriteHeader(http.StatusInternalServerError)
-    w.Write([]byte(err.Error()))
-  } else {
-    w.WriteHeader(http.StatusNoContent)
-  }
 }
 
 type InstanceList struct {
@@ -92,21 +78,22 @@ func (s *server) InstanceList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
-  // TODO get from request params
-  ns := "default"
-  name := "default"
-  cpus := int32(1)
-  mem := int32(512)
-  image := vmapi.MachineImageUbuntu
-  action := vmapi.ActionStart
+  r.ParseForm()
+  // TODO validate form
+  ns := r.PostForm["ns"][0]
+  name := r.PostForm["name"][0]
+  cpus, _ := strconv.Atoi(r.PostForm["cpus"][0])
+  mem, _ := strconv.Atoi(r.PostForm["mem"][0])
+  image := vmapi.MachineImageType(r.PostForm["image"][0])
+  action := vmapi.ActionType(r.PostForm["action"][0])
 
   vm := &vmapi.VirtualMachine{
     ObjectMeta: metav1.ObjectMeta{
       Name:      name,
     },
     Spec: vmapi.VirtualMachineSpec{
-      Cpus: cpus,
-      MemoryMB: mem,
+      Cpus: int32(cpus),
+      MemoryMB: int32(mem),
       MachineImage: image,
       Action: action,
     },
@@ -117,5 +104,18 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusInternalServerError)
   } else {
     w.WriteHeader(http.StatusCreated)
+  }
+}
+
+func (s *server) InstanceDelete(w http.ResponseWriter, r *http.Request) {
+  ns := mux.Vars(r)["ns"]
+  name := mux.Vars(r)["name"]
+
+  err := s.vmClient.VirtualmachineV1alpha1().VirtualMachines(ns).Delete(name, &metav1.DeleteOptions{})
+  if err != nil {
+    w.WriteHeader(http.StatusInternalServerError)
+    w.Write([]byte(err.Error()))
+  } else {
+    w.WriteHeader(http.StatusNoContent)
   }
 }
