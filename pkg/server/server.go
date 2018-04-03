@@ -50,6 +50,7 @@ func (s *server) newRouter() *mux.Router {
   r.Methods("GET").Path("/v1/instances").Handler(http.HandlerFunc(s.InstanceList))
   r.Methods("POST").Path("/v1/instances").Handler(http.HandlerFunc(s.InstanceCreate))
   r.Methods("DELETE").Path("/v1/instances/{ns}/{name}").Handler(http.HandlerFunc(s.InstanceDelete))
+  r.Methods("POST").Path("/v1/instances/{ns}/{name}/{action}").Handler(http.HandlerFunc(s.InstanceAction))
   return r
 }
 
@@ -115,6 +116,33 @@ func (s *server) InstanceDelete(w http.ResponseWriter, r *http.Request) {
   if err != nil {
     w.WriteHeader(http.StatusInternalServerError)
     w.Write([]byte(err.Error()))
+  } else {
+    w.WriteHeader(http.StatusNoContent)
+  }
+}
+
+func (s *server) InstanceAction(w http.ResponseWriter, r *http.Request) {
+  ns := mux.Vars(r)["ns"]
+  name := mux.Vars(r)["name"]
+  action := mux.Vars(r)["action"]
+  
+  vm, err := s.vmLister.VirtualMachines(ns).Get(name)
+  if err != nil {
+    w.WriteHeader(http.StatusInternalServerError)
+    w.Write([]byte(err.Error()))
+    return
+  }
+
+  vm2 := vm.DeepCopy()
+  vm2.Spec.Action = vmapi.ActionType(action)
+  if vm.Spec.Action == vm2.Spec.Action {
+    w.WriteHeader(http.StatusNotModified)
+    return
+  }
+
+  vm2, err = s.vmClient.VirtualmachineV1alpha1().VirtualMachines(ns).Update(vm2)
+  if err != nil {
+    w.WriteHeader(http.StatusInternalServerError)
   } else {
     w.WriteHeader(http.StatusNoContent)
   }

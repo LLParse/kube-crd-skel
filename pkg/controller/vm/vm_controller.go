@@ -258,13 +258,13 @@ func (ctrl *VirtualMachineController) deleteVmPod(ns, name string) (err error) {
 func (ctrl *VirtualMachineController) deleteVM(ns, name string) {
 	ctrl.deleteVmPod(ns, name)
 
-	glog.V(2).Infof("deleting novnc pod %s/%s", ns, name)
+	glog.V(2).Infof("trying to delete novnc pod %s/%s", ns, name)
 	err := ctrl.kubeClient.CoreV1().Pods(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		glog.V(2).Infof("error deleting novnc pod %s/%s: %v", ns, name, err)
 	}
 
-	glog.V(2).Infof("deleting novnc service %s/%s", ns, name)
+	glog.V(2).Infof("trying to delete novnc service %s/%s", ns, name)
 	err = ctrl.kubeClient.CoreV1().Services(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		glog.V(2).Infof("error deleting novnc service %s/%s: %v", ns, name, err)
