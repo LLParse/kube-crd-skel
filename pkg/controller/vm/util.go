@@ -112,6 +112,8 @@ func makeVMPod(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
         "cpus": cpu,
         "memory_mb": mem,
         "image": image,
+        "id": vm.Status.ID,
+        "mac": vm.Status.MAC,
       },
     },
     Spec: corev1.PodSpec{
@@ -139,6 +141,7 @@ func makeVMPod(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
             makeEnvVar("IFACE", iface, nil),
             makeEnvVar("MEMORY_MB", mem, nil),
             makeEnvVar("CPUS", cpu, nil),
+            makeEnvVar("MAC", vm.Status.MAC, nil),
             // Use downward API so we can uniquely name VNC socket
             makeEnvVarFieldPath("MY_POD_NAME", "metadata.name"),
             makeEnvVarFieldPath("MY_POD_NAMESPACE", "metadata.namespace"),

@@ -2,8 +2,10 @@ package server
 
 import (
   "encoding/json"
+  "io/ioutil"
   "net/http"
   "strconv"
+  "strings"
 
   "github.com/golang/glog"
   "github.com/gorilla/mux"
@@ -78,29 +80,62 @@ func (s *server) InstanceList(w http.ResponseWriter, r *http.Request) {
   w.Write(resp)
 }
 
+type InstanceCreate struct {
+  Namespace string `json:"namespace"`
+  Name string `json:"name"`
+  Cpus int32 `json:"cpus"`
+  Memory int32 `json:"memory"`
+  Image string `json:"image"`
+  Action string `json:"action"`
+}
+
 func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
-  r.ParseForm()
-  // TODO validate form
-  ns := r.PostForm["ns"][0]
-  name := r.PostForm["name"][0]
-  cpus, _ := strconv.Atoi(r.PostForm["cpus"][0])
-  mem, _ := strconv.Atoi(r.PostForm["mem"][0])
-  image := vmapi.MachineImageType(r.PostForm["image"][0])
-  action := vmapi.ActionType(r.PostForm["action"][0])
+  var ic InstanceCreate
+  switch {
+  case strings.HasPrefix(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded"):
+    r.ParseForm()
+    cpus, _ := strconv.Atoi(r.PostForm["cpus"][0])
+    mem, _ := strconv.Atoi(r.PostForm["mem"][0])
+    ic = InstanceCreate{
+      Namespace: r.PostForm["ns"][0],
+      Name: r.PostForm["name"][0],
+      Cpus: int32(cpus),
+      Memory: int32(mem),
+      Image: r.PostForm["image"][0],
+      Action: r.PostForm["action"][0],
+    }
+  case strings.HasPrefix(r.Header.Get("Content-Type"), "application/json"):
+    defer r.Body.Close()
+    body, err := ioutil.ReadAll(r.Body)
+    if err != nil {
+      w.WriteHeader(http.StatusInternalServerError)
+      return
+    }
+    err = json.Unmarshal(body, &ic)
+    if err != nil {
+      w.WriteHeader(http.StatusBadRequest)
+      return
+    }
+  default:
+    w.WriteHeader(http.StatusBadRequest)
+    return
+  }
+
+  // TODO validate result
 
   vm := &vmapi.VirtualMachine{
     ObjectMeta: metav1.ObjectMeta{
-      Name:      name,
+      Name:      ic.Name,
     },
     Spec: vmapi.VirtualMachineSpec{
-      Cpus: int32(cpus),
-      MemoryMB: int32(mem),
-      MachineImage: image,
-      Action: action,
+      Cpus: ic.Cpus,
+      MemoryMB: ic.Memory,
+      MachineImage: vmapi.MachineImageType(ic.Image),
+      Action: vmapi.ActionType(ic.Action),
     },
   }
 
-  vm, err := s.vmClient.VirtualmachineV1alpha1().VirtualMachines(ns).Create(vm)
+  vm, err := s.vmClient.VirtualmachineV1alpha1().VirtualMachines(ic.Namespace).Create(vm)
   if err != nil {
     w.WriteHeader(http.StatusInternalServerError)
   } else {
