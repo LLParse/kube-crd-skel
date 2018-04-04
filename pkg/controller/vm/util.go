@@ -76,6 +76,18 @@ func makeVolumeMount(name, mountPath, subPath string, readOnly bool) corev1.Volu
   }
 }
 
+const HostStateBaseDir = "/tmp/rancher"
+func makeHostStateVol(vmNamespace, vmName, volName string) corev1.Volume {
+  return corev1.Volume{
+    Name: volName,
+    VolumeSource: corev1.VolumeSource{
+      HostPath: &corev1.HostPathVolumeSource{
+        Path: fmt.Sprintf("%s/%s_%s/%s", HostStateBaseDir, vmNamespace, vmName, volName),
+      },
+    },
+  }
+}
+
 var privileged = true
 
 func makeVMPod(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
@@ -118,8 +130,8 @@ func makeVMPod(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
     },
     Spec: corev1.PodSpec{
       Volumes: []corev1.Volume{
-        makeVolHostPath("vm-fs", "/tmp/rancher/vm-fs"),
-        makeVolEmptyDir("vm-image"),
+        makeHostStateVol(vm.Name, vm.Namespace, "vm-fs"),
+        makeHostStateVol(vm.Name, vm.Namespace, "vm-image"),
         makeVolHostPath("vm-socket", "/tmp/rancher/vm-socks"),
         makeVolHostPath("dev-kvm", "/dev/kvm"),
       },

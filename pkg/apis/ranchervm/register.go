@@ -33,7 +33,7 @@ func CreateCustomResourceDefinition(clientset apiextensionsclient.Interface) err
 				Plural:     "virtualmachines",
 				Singular:   "virtualmachine",
 				Kind:       "VirtualMachine",
-				ShortNames: []string{"vm"},
+				ShortNames: []string{"vm", "vms"},
 			},
 			Scope: apiextensionsv1beta1.NamespaceScoped,
 			Validation: &apiextensionsv1beta1.CustomResourceValidation{
