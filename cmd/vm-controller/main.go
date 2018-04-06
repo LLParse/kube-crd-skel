@@ -18,11 +18,16 @@ import (
 	"github.com/llparse/kube-crd-skel/pkg/apis/ranchervm"
 	"github.com/llparse/kube-crd-skel/pkg/client/clientset/versioned"
 	"github.com/llparse/kube-crd-skel/pkg/client/informers/externalversions"
+	"github.com/llparse/kube-crd-skel/pkg/controller/ip"
 	"github.com/llparse/kube-crd-skel/pkg/controller/vm"
 	"github.com/llparse/kube-crd-skel/pkg/server"
 )
 
 func main() {
+	vmCtrl := flag.Bool("vm", false, "Run the VM controller")
+	ipCtrl := flag.Bool("ip", false, "Run the IP controller")
+	serv := flag.Bool("server", false, "Run the rest server")
+
 	kubeconfig := flag.String("kubeconfig", "", "Path to a kube config; only required if out-of-cluster.")
 	workers := flag.Int("workers", 5, "Concurrent VM syncs")
 	flag.Set("logtostderr", "true")
@@ -46,18 +51,32 @@ func main() {
 
 	stopCh := makeStopChan()
 
-	go vm.NewVirtualMachineController(
-		vmClientset,
-		kubeClientset,
-		vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
-		kubeInformerFactory.Core().V1().Pods(),
-		kubeInformerFactory.Core().V1().Services(),
-	).Run(*workers, stopCh)
+	// FIXME don't create/start informers unless necessary
 
-	go server.NewServer(
-		vmClientset,
-		vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
-	).Run(stopCh)
+	if *vmCtrl {
+		go vm.NewVirtualMachineController(
+			vmClientset,
+			kubeClientset,
+			vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
+			kubeInformerFactory.Core().V1().Pods(),
+			kubeInformerFactory.Core().V1().Services(),
+		).Run(*workers, stopCh)
+	}
+
+	// FIXME use different CRD
+	if *ipCtrl {
+		go ip.NewIPDiscoveryController(
+			vmClientset,
+			vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
+		).Run(*workers, stopCh)
+	}
+
+	if *serv {
+		go server.NewServer(
+			vmClientset,
+			vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
+		).Run(stopCh)
+	}
 
 	vmInformerFactory.Start(stopCh)
 	kubeInformerFactory.Start(stopCh)
