@@ -28,7 +28,6 @@ import (
 // FakeARPTables implements ARPTableInterface
 type FakeARPTables struct {
 	Fake *FakeVirtualmachineV1alpha1
-	ns   string
 }
 
 var arptablesResource = schema.GroupVersionResource{Group: "virtualmachine.rancher.com", Version: "v1alpha1", Resource: "arptables"}
@@ -38,8 +37,7 @@ var arptablesKind = schema.GroupVersionKind{Group: "virtualmachine.rancher.com",
 // Get takes name of the aRPTable, and returns the corresponding aRPTable object, and an error if there is any.
 func (c *FakeARPTables) Get(name string, options v1.GetOptions) (result *v1alpha1.ARPTable, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(arptablesResource, c.ns, name), &v1alpha1.ARPTable{})
-
+		Invokes(testing.NewRootGetAction(arptablesResource, name), &v1alpha1.ARPTable{})
 	if obj == nil {
 		return nil, err
 	}
@@ -49,8 +47,7 @@ func (c *FakeARPTables) Get(name string, options v1.GetOptions) (result *v1alpha
 // List takes label and field selectors, and returns the list of ARPTables that match those selectors.
 func (c *FakeARPTables) List(opts v1.ListOptions) (result *v1alpha1.ARPTableList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(arptablesResource, arptablesKind, c.ns, opts), &v1alpha1.ARPTableList{})
-
+		Invokes(testing.NewRootListAction(arptablesResource, arptablesKind, opts), &v1alpha1.ARPTableList{})
 	if obj == nil {
 		return nil, err
 	}
@@ -71,15 +68,13 @@ func (c *FakeARPTables) List(opts v1.ListOptions) (result *v1alpha1.ARPTableList
 // Watch returns a watch.Interface that watches the requested aRPTables.
 func (c *FakeARPTables) Watch(opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(arptablesResource, c.ns, opts))
-
+		InvokesWatch(testing.NewRootWatchAction(arptablesResource, opts))
 }
 
 // Create takes the representation of a aRPTable and creates it.  Returns the server's representation of the aRPTable, and an error, if there is any.
 func (c *FakeARPTables) Create(aRPTable *v1alpha1.ARPTable) (result *v1alpha1.ARPTable, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(arptablesResource, c.ns, aRPTable), &v1alpha1.ARPTable{})
-
+		Invokes(testing.NewRootCreateAction(arptablesResource, aRPTable), &v1alpha1.ARPTable{})
 	if obj == nil {
 		return nil, err
 	}
@@ -89,8 +84,7 @@ func (c *FakeARPTables) Create(aRPTable *v1alpha1.ARPTable) (result *v1alpha1.AR
 // Update takes the representation of a aRPTable and updates it. Returns the server's representation of the aRPTable, and an error, if there is any.
 func (c *FakeARPTables) Update(aRPTable *v1alpha1.ARPTable) (result *v1alpha1.ARPTable, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(arptablesResource, c.ns, aRPTable), &v1alpha1.ARPTable{})
-
+		Invokes(testing.NewRootUpdateAction(arptablesResource, aRPTable), &v1alpha1.ARPTable{})
 	if obj == nil {
 		return nil, err
 	}
@@ -100,14 +94,13 @@ func (c *FakeARPTables) Update(aRPTable *v1alpha1.ARPTable) (result *v1alpha1.AR
 // Delete takes name of the aRPTable and deletes it. Returns an error if one occurs.
 func (c *FakeARPTables) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(arptablesResource, c.ns, name), &v1alpha1.ARPTable{})
-
+		Invokes(testing.NewRootDeleteAction(arptablesResource, name), &v1alpha1.ARPTable{})
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeARPTables) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(arptablesResource, c.ns, listOptions)
+	action := testing.NewRootDeleteCollectionAction(arptablesResource, listOptions)
 
 	_, err := c.Fake.Invokes(action, &v1alpha1.ARPTableList{})
 	return err
@@ -116,8 +109,7 @@ func (c *FakeARPTables) DeleteCollection(options *v1.DeleteOptions, listOptions 
 // Patch applies the patch and returns the patched aRPTable.
 func (c *FakeARPTables) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.ARPTable, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(arptablesResource, c.ns, name, data, subresources...), &v1alpha1.ARPTable{})
-
+		Invokes(testing.NewRootPatchSubresourceAction(arptablesResource, name, data, subresources...), &v1alpha1.ARPTable{})
 	if obj == nil {
 		return nil, err
 	}

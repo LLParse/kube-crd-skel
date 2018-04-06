@@ -98,6 +98,7 @@ type VirtualMachineList struct {
 
 // +genclient
 // +genclient:noStatus
+// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ARPTable is a set of ip/mac correlations discovered on a node's host network.
@@ -111,12 +112,6 @@ type ARPTable struct {
 	Status ARPTableStatus `json:"status"`
 }
 
-type ARPTableSpec struct {}
-
-type ARPTableStatus struct {
-	Table map[string]ARPEntry `json:"table"`
-}
-
 type ARPEntry struct {
 	IP string `json:"ip"`
 	HWType string `json:"hw_type"`
@@ -124,6 +119,13 @@ type ARPEntry struct {
 	HWAddress string `json:"hw_addr"`
 	Mask string `json:"mask"`
 	Device string `json:"device"`
+}
+
+type ARPTableSpec struct {
+	Table []ARPEntry `json:"table"`
+}
+
+type ARPTableStatus struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -29,8 +29,8 @@ import (
 type ARPTableLister interface {
 	// List lists all ARPTables in the indexer.
 	List(selector labels.Selector) (ret []*v1alpha1.ARPTable, err error)
-	// ARPTables returns an object that can list and get ARPTables.
-	ARPTables(namespace string) ARPTableNamespaceLister
+	// Get retrieves the ARPTable from the index for a given name.
+	Get(name string) (*v1alpha1.ARPTable, error)
 	ARPTableListerExpansion
 }
 
@@ -52,38 +52,9 @@ func (s *aRPTableLister) List(selector labels.Selector) (ret []*v1alpha1.ARPTabl
 	return ret, err
 }
 
-// ARPTables returns an object that can list and get ARPTables.
-func (s *aRPTableLister) ARPTables(namespace string) ARPTableNamespaceLister {
-	return aRPTableNamespaceLister{indexer: s.indexer, namespace: namespace}
-}
-
-// ARPTableNamespaceLister helps list and get ARPTables.
-type ARPTableNamespaceLister interface {
-	// List lists all ARPTables in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1alpha1.ARPTable, err error)
-	// Get retrieves the ARPTable from the indexer for a given namespace and name.
-	Get(name string) (*v1alpha1.ARPTable, error)
-	ARPTableNamespaceListerExpansion
-}
-
-// aRPTableNamespaceLister implements the ARPTableNamespaceLister
-// interface.
-type aRPTableNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all ARPTables in the indexer for a given namespace.
-func (s aRPTableNamespaceLister) List(selector labels.Selector) (ret []*v1alpha1.ARPTable, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1alpha1.ARPTable))
-	})
-	return ret, err
-}
-
-// Get retrieves the ARPTable from the indexer for a given namespace and name.
-func (s aRPTableNamespaceLister) Get(name string) (*v1alpha1.ARPTable, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
+// Get retrieves the ARPTable from the index for a given name.
+func (s *aRPTableLister) Get(name string) (*v1alpha1.ARPTable, error) {
+	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {
 		return nil, err
 	}

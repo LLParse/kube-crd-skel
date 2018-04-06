@@ -22,10 +22,6 @@ package v1alpha1
 // ARPTableLister.
 type ARPTableListerExpansion interface{}
 
-// ARPTableNamespaceListerExpansion allows custom methods to be added to
-// ARPTableNamespaceLister.
-type ARPTableNamespaceListerExpansion interface{}
-
 // VirtualMachineListerExpansion allows custom methods to be added to
 // VirtualMachineLister.
 type VirtualMachineListerExpansion interface{}

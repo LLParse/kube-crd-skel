@@ -44,14 +44,14 @@ type aRPTableInformer struct {
 // NewARPTableInformer constructs a new informer for ARPTable type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewARPTableInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+func NewARPTableInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
-				return client.VirtualmachineV1alpha1().ARPTables(namespace).List(options)
+				return client.VirtualmachineV1alpha1().ARPTables().List(options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
-				return client.VirtualmachineV1alpha1().ARPTables(namespace).Watch(options)
+				return client.VirtualmachineV1alpha1().ARPTables().Watch(options)
 			},
 		},
 		&ranchervm_v1alpha1.ARPTable{},
@@ -61,7 +61,7 @@ func NewARPTableInformer(client versioned.Interface, namespace string, resyncPer
 }
 
 func defaultARPTableInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewARPTableInformer(client, v1.NamespaceAll, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	return NewARPTableInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 }
 
 func (f *aRPTableInformer) Informer() cache.SharedIndexInformer {

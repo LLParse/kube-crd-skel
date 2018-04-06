@@ -8,75 +8,80 @@ import (
 
   "github.com/golang/glog"
   apierrors "k8s.io/apimachinery/pkg/api/errors"
+  metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+  "k8s.io/apimachinery/pkg/util/wait"
   "k8s.io/client-go/tools/cache"
   "k8s.io/client-go/util/workqueue"
 
+  vmapi "github.com/llparse/kube-crd-skel/pkg/apis/ranchervm/v1alpha1"
   vmclientset "github.com/llparse/kube-crd-skel/pkg/client/clientset/versioned"
   vminformers "github.com/llparse/kube-crd-skel/pkg/client/informers/externalversions/virtualmachine/v1alpha1"
   vmlisters "github.com/llparse/kube-crd-skel/pkg/client/listers/virtualmachine/v1alpha1"
 )
 
 type IPDiscoveryController struct {
-  vmClient   vmclientset.Interface
+  crdClient   vmclientset.Interface
 
-  vmLister        vmlisters.VirtualMachineLister
-  vmListerSynced  cache.InformerSynced
+  arpLister        vmlisters.ARPTableLister
+  arpListerSynced  cache.InformerSynced
 
-  vmQueue  workqueue.RateLimitingInterface
+  arpQueue  workqueue.RateLimitingInterface
+
+  nodeName string
 }
 
 func NewIPDiscoveryController(
-  vmClient vmclientset.Interface,
-  vmInformer vminformers.VirtualMachineInformer,
+  crdClient vmclientset.Interface,
+  arpInformer vminformers.ARPTableInformer,
+  nodeName string,
 ) *IPDiscoveryController {
 
   ctrl := &IPDiscoveryController{
-    vmClient:   vmClient,
-    vmQueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "virtualmachine"),
+    crdClient:  crdClient,
+    arpQueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "virtualmachine"),
+    nodeName: nodeName,
   }
 
-  vmInformer.Informer().AddEventHandler(
+  arpInformer.Informer().AddEventHandler(
     cache.ResourceEventHandlerFuncs{
-      AddFunc:    func(obj interface{}) { ctrl.enqueueWork(ctrl.vmQueue, obj) },
-      UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueWork(ctrl.vmQueue, newObj) },
-      DeleteFunc: func(obj interface{}) { ctrl.enqueueWork(ctrl.vmQueue, obj) },
+      AddFunc:    func(obj interface{}) { ctrl.enqueueWork(ctrl.arpQueue, obj) },
+      UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueWork(ctrl.arpQueue, newObj) },
+      DeleteFunc: func(obj interface{}) { ctrl.enqueueWork(ctrl.arpQueue, obj) },
     },
   )
 
-  ctrl.vmLister = vmInformer.Lister()
-  ctrl.vmListerSynced = vmInformer.Informer().HasSynced
+  ctrl.arpLister = arpInformer.Lister()
+  ctrl.arpListerSynced = arpInformer.Informer().HasSynced
 
   return ctrl
 }
 
 func (ctrl *IPDiscoveryController) Run(workers int, stopCh <-chan struct{}) {
-  defer ctrl.vmQueue.ShutDown()
+  defer ctrl.arpQueue.ShutDown()
 
   glog.Infof("Starting ip discovery controller")
   defer glog.Infof("Shutting down ip discovery Controller")
 
-  if !cache.WaitForCacheSync(stopCh, ctrl.vmListerSynced) {
+  if !cache.WaitForCacheSync(stopCh, ctrl.arpListerSynced) {
     return
   }
 
-  // for i := 0; i < workers; i++ {
-  //   go wait.Until(ctrl.vmWorker, time.Second, stopCh)
-  // }
+  go wait.Until(ctrl.arpWorker, time.Second, stopCh)
   go ctrl.updatePeriodically()
 
   <-stopCh
 }
 
 func (ctrl *IPDiscoveryController) updatePeriodically() {
-  c := time.Tick(5*time.Second)
+  c := time.Tick(3*time.Second)
   for _ = range c {
     ctrl.update()
   }
 }
 
 func (ctrl *IPDiscoveryController) update() error {
-  glog.V(4).Infof("begin update")
-  defer glog.V(4).Infof("end update")
+  glog.V(5).Infof("begin update")
+  defer glog.V(5).Infof("end update")
   
   arpHandle, err := os.Open("/proc/net/arp")
   if err != nil {
@@ -85,26 +90,67 @@ func (ctrl *IPDiscoveryController) update() error {
   }
   defer arpHandle.Close()
 
+  table := []vmapi.ARPEntry{}
   arp := bufio.NewScanner(arpHandle)
   for arp.Scan() {
     l := arp.Text()
-    // skip header
+    // ignore header
     if strings.HasPrefix(l, "IP") {
       continue
     }
-    for _, x := range strings.Fields(l) {
-      glog.V(3).Infof(x)
+    f := strings.Fields(l)
+    // ignore invalid entries
+    if len(f) != 6 {
+      continue
+    }
+    // only store entries on the managed bridge
+    if f[5] != "br0" {
+      continue
+    }
+    table = append(table, vmapi.ARPEntry{
+      IP: f[0],
+      HWType: f[1],
+      Flags: f[2],
+      HWAddress: f[3],
+      Mask: f[4],
+      Device: f[5],
+    })
+  }
+
+  curTable, err := ctrl.arpLister.Get(ctrl.nodeName)
+  if err == nil {
+    arptable := curTable.DeepCopy()
+    arptable.Spec.Table = table
+    arptable, err = ctrl.crdClient.VirtualmachineV1alpha1().ARPTables().Update(arptable)
+    if err != nil {
+      glog.Warningf(err.Error())
+    }
+
+  } else if !apierrors.IsNotFound(err) {
+    glog.V(2).Infof("error getting arptable %s: %v", ctrl.nodeName, err)
+    return err
+
+  } else {
+    arptable := &vmapi.ARPTable{
+      // I shouldn't have to set the type meta, what's wrong with the client?
+      TypeMeta: metav1.TypeMeta{
+        APIVersion: "vm.rancher.com/v1alpha1",
+        Kind: "ARPTable",
+      },
+      ObjectMeta: metav1.ObjectMeta{
+        Name:      ctrl.nodeName,
+      },
+      Spec: vmapi.ARPTableSpec{
+        Table: table,
+      },
+    }
+    arptable, err = ctrl.crdClient.VirtualmachineV1alpha1().ARPTables().Create(arptable)
+    if err != nil {
+      glog.Warningf(err.Error())
     }
   }
 
-  // data, err := ioutil.ReadFile("/proc/net/arp")
-  // if err != nil {
-  //   glog.Warningf(err.Error())
-  //   return err
-  // }
-
-  // glog.V(3).Infof("%s", string(data))
-  return nil
+  return err
 }
 
 func (ctrl *IPDiscoveryController) enqueueWork(queue workqueue.Interface, obj interface{}) {
@@ -121,22 +167,22 @@ func (ctrl *IPDiscoveryController) enqueueWork(queue workqueue.Interface, obj in
   queue.Add(objName)
 }
 
-func (ctrl *IPDiscoveryController) vmWorker() {
+func (ctrl *IPDiscoveryController) arpWorker() {
   workFunc := func() bool {
-    keyObj, quit := ctrl.vmQueue.Get()
+    keyObj, quit := ctrl.arpQueue.Get()
     if quit {
       return true
     }
-    defer ctrl.vmQueue.Done(keyObj)
+    defer ctrl.arpQueue.Done(keyObj)
     key := keyObj.(string)
-    glog.V(5).Infof("vmWorker[%s]", key)
+    glog.V(5).Infof("arpWorker[%s]", key)
 
-    ns, name, err := cache.SplitMetaNamespaceKey(key)
+    _, name, err := cache.SplitMetaNamespaceKey(key)
     if err != nil {
-      glog.V(4).Infof("error getting name of vm %q to get vm from informer: %v", key, err)
+      glog.V(4).Infof("error getting name of arp table %q to get arp table from informer: %v", key, err)
       return false
     }
-    _, err = ctrl.vmLister.VirtualMachines(ns).Get(name)
+    _, err = ctrl.arpLister.Get(name)
     if err == nil {
       // The vm still exists in informer cache, the event must have been
       // add/update/sync
@@ -144,7 +190,7 @@ func (ctrl *IPDiscoveryController) vmWorker() {
       return false
     }
     if !apierrors.IsNotFound(err) {
-      glog.V(2).Infof("error getting vm %q from informer: %v", key, err)
+      glog.V(2).Infof("error getting arp table %q from informer: %v", key, err)
       return false
     }
 
@@ -155,7 +201,7 @@ func (ctrl *IPDiscoveryController) vmWorker() {
   }
   for {
     if quit := workFunc(); quit {
-      glog.Infof("vm worker queue shutting down")
+      glog.Infof("arp table worker queue shutting down")
       return
     }
   }

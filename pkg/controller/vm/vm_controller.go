@@ -251,6 +251,8 @@ func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
 		vm2.Status.ID = fmt.Sprintf("i-%s", uid[:8])
 		vm2.Status.MAC = fmt.Sprintf("06:fe:%s:%s:%s:%s", uid[:2], uid[2:4], uid[4:6], uid[6:8])
 		ctrl.updateVMStatus(vm, vm2)
+		ctrl.updateVM(vm2)
+		return
 	}
 
 	switch vm.Spec.Action {

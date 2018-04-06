@@ -33,8 +33,8 @@ type VirtualmachineV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *VirtualmachineV1alpha1Client) ARPTables(namespace string) ARPTableInterface {
-	return newARPTables(c, namespace)
+func (c *VirtualmachineV1alpha1Client) ARPTables() ARPTableInterface {
+	return newARPTables(c)
 }
 
 func (c *VirtualmachineV1alpha1Client) VirtualMachines(namespace string) VirtualMachineInterface {

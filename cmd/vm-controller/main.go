@@ -26,6 +26,7 @@ import (
 func main() {
 	vmCtrl := flag.Bool("vm", false, "Run the VM controller")
 	ipCtrl := flag.Bool("ip", false, "Run the IP controller")
+	nodeName := flag.String("nodename", "", "Name of the node running the controller pod")
 	serv := flag.Bool("server", false, "Run the rest server")
 
 	kubeconfig := flag.String("kubeconfig", "", "Path to a kube config; only required if out-of-cluster.")
@@ -69,7 +70,8 @@ func main() {
 	if *ipCtrl {
 		go ip.NewIPDiscoveryController(
 			vmClientset,
-			vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
+			vmInformerFactory.Virtualmachine().V1alpha1().ARPTables(),
+			*nodeName,
 		).Run(*workers, stopCh)
 	}
 
