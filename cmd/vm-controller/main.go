@@ -39,7 +39,10 @@ func main() {
 	}
 
 	apiextensionsclientset := apiextensionsclient.NewForConfigOrDie(config)
-	if err := ranchervm.CreateCustomResourceDefinition(apiextensionsclientset); err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := ranchervm.CreateVirtualMachineDefinition(apiextensionsclientset); err != nil && !apierrors.IsAlreadyExists(err) {
+		panic(err)
+	}
+	if err := ranchervm.CreateARPTableDefinition(apiextensionsclientset); err != nil && !apierrors.IsAlreadyExists(err) {
 		panic(err)
 	}
 
@@ -63,7 +66,6 @@ func main() {
 		).Run(*workers, stopCh)
 	}
 
-	// FIXME use different CRD
 	if *ipCtrl {
 		go ip.NewIPDiscoveryController(
 			vmClientset,

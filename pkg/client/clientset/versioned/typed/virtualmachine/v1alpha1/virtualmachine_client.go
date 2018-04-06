@@ -24,12 +24,17 @@ import (
 
 type VirtualmachineV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	ARPTablesGetter
 	VirtualMachinesGetter
 }
 
 // VirtualmachineV1alpha1Client is used to interact with features provided by the virtualmachine.rancher.com group.
 type VirtualmachineV1alpha1Client struct {
 	restClient rest.Interface
+}
+
+func (c *VirtualmachineV1alpha1Client) ARPTables(namespace string) ARPTableInterface {
+	return newARPTables(c, namespace)
 }
 
 func (c *VirtualmachineV1alpha1Client) VirtualMachines(namespace string) VirtualMachineInterface {

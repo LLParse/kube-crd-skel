@@ -41,6 +41,11 @@ type VirtualMachineSpec struct {
 	MemoryMB  int32 `json:"memory_mb"`
 	MachineImage MachineImageType `json:"image"`
 	Action ActionType `json:"action"`
+	Disks VDisk `json:"disks"`
+}
+
+type VDisk struct {
+	Root bool
 }
 
 type StateType string
@@ -77,6 +82,8 @@ type VirtualMachineStatus struct {
 	// MAC address we will assign to a guest NIC, if necessary. It is derived
 	// from the metadata uid field.
 	MAC string `json:"mac"`
+	// IP address assigned to the guest NIC
+	IP string `json:"ip"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -87,4 +94,43 @@ type VirtualMachineList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	Items []VirtualMachine `json:"items"`
+}
+
+// +genclient
+// +genclient:noStatus
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ARPTable is a set of ip/mac correlations discovered on a node's host network.
+// It is used to deduce what IP address is assigned to a VM without accessing
+// the DHCP server or adding instrumentation to each VM.
+type ARPTable struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   ARPTableSpec   `json:"spec"`
+	Status ARPTableStatus `json:"status"`
+}
+
+type ARPTableSpec struct {}
+
+type ARPTableStatus struct {
+	Table map[string]ARPEntry `json:"table"`
+}
+
+type ARPEntry struct {
+	IP string `json:"ip"`
+	HWType string `json:"hw_type"`
+	Flags string `json:"flags"`
+	HWAddress string `json:"hw_addr"`
+	Mask string `json:"mask"`
+	Device string `json:"device"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+type ARPTableList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []ARPTable `json:"items"`
 }

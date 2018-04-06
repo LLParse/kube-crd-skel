@@ -24,6 +24,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// ARPTables returns a ARPTableInformer.
+	ARPTables() ARPTableInformer
 	// VirtualMachines returns a VirtualMachineInformer.
 	VirtualMachines() VirtualMachineInformer
 }
@@ -35,6 +37,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory) Interface {
 	return &version{f}
+}
+
+// ARPTables returns a ARPTableInformer.
+func (v *version) ARPTables() ARPTableInformer {
+	return &aRPTableInformer{factory: v.SharedInformerFactory}
 }
 
 // VirtualMachines returns a VirtualMachineInformer.

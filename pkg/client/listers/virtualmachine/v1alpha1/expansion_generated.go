@@ -18,6 +18,14 @@ limitations under the License.
 
 package v1alpha1
 
+// ARPTableListerExpansion allows custom methods to be added to
+// ARPTableLister.
+type ARPTableListerExpansion interface{}
+
+// ARPTableNamespaceListerExpansion allows custom methods to be added to
+// ARPTableNamespaceLister.
+type ARPTableNamespaceListerExpansion interface{}
+
 // VirtualMachineListerExpansion allows custom methods to be added to
 // VirtualMachineLister.
 type VirtualMachineListerExpansion interface{}

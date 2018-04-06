@@ -17,5 +17,5 @@ else
     y|Y ) docker push ${image_tag} ;;
     * ) ;;
   esac
-  rm -r bin/image
+#  rm -r bin/image
 fi

@@ -15,14 +15,14 @@ const (
 	GroupName = "vm.rancher.com"
 )
 
-func CreateCustomResourceDefinition(clientset apiextensionsclient.Interface) error {
+func createVirtualMachineDefinition() *apiextensionsv1beta1.CustomResourceDefinition {
 	var minCpus, maxCpus, minMemoryMB, maxMemoryMB float64
 	minCpus = 1.0
 	maxCpus = 8.0
 	minMemoryMB = 64.0
 	maxMemoryMB = 65536.0
 
-	crd := &apiextensionsv1beta1.CustomResourceDefinition{
+	return &apiextensionsv1beta1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "virtualmachines." + GroupName,
 		},
@@ -61,20 +61,38 @@ func CreateCustomResourceDefinition(clientset apiextensionsclient.Interface) err
 			},
 		},
 	}
+}
 
-	if _, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd); err != nil {
+func CreateARPTableDefinition(clientset apiextensionsclient.Interface) error {
+	arp := &apiextensionsv1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "arptables." + GroupName,
+		},
+		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
+			Group:   GroupName,
+			Version: "v1alpha1",
+			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
+				Plural:     "arptables",
+				Singular:   "arptable",
+				Kind:       "ARPTable",
+				ShortNames: []string{"arp", "arps"},
+			},
+			Scope: apiextensionsv1beta1.ClusterScoped,
+		},
+	}
+	if _, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(arp); err != nil {
 		return err
 	}
 
 	// Wait for CRD to be established
 	if err := wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
-		crd, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
-			Get("virtualmachines."+GroupName, metav1.GetOptions{})
+		arp, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
+			Get("arptables."+GroupName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
 
-		for _, cond := range crd.Status.Conditions {
+		for _, cond := range arp.Status.Conditions {
 			switch cond.Type {
 			case apiextensionsv1beta1.Established:
 				if cond.Status == apiextensionsv1beta1.ConditionTrue {
@@ -89,12 +107,53 @@ func CreateCustomResourceDefinition(clientset apiextensionsclient.Interface) err
 
 		return false, err
 	}); err != nil {
-		if deleteErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
-			Delete("virtualmachines."+GroupName, nil); deleteErr != nil {
-			return errors.NewAggregate([]error{err, deleteErr})
+		deleteArpErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
+			Delete("arptables."+GroupName, nil)
+
+		if deleteArpErr != nil {
+			return errors.NewAggregate([]error{err, deleteArpErr})
 		}
 		return err
 	}
+	return nil
+}
 
+func CreateVirtualMachineDefinition(clientset apiextensionsclient.Interface) error {
+	vm := createVirtualMachineDefinition()
+	if _, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(vm); err != nil {
+		return err
+	}
+
+	// Wait for CRD to be established
+	if err := wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
+		vm, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
+			Get("virtualmachines."+GroupName, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+
+		for _, cond := range vm.Status.Conditions {
+			switch cond.Type {
+			case apiextensionsv1beta1.Established:
+				if cond.Status == apiextensionsv1beta1.ConditionTrue {
+					break
+				}
+			case apiextensionsv1beta1.NamesAccepted:
+				if cond.Status == apiextensionsv1beta1.ConditionFalse {
+					fmt.Printf("Name conflict: %v\n", cond.Reason)
+				}
+			}
+		}
+
+		return false, err
+	}); err != nil {
+		deleteVmErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
+			Delete("virtualmachines."+GroupName, nil)
+
+		if deleteVmErr != nil {
+			return errors.NewAggregate([]error{err, deleteVmErr})
+		}
+		return err
+	}
 	return nil
 }

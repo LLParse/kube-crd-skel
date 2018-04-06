@@ -1,11 +1,13 @@
 package ip
 
 import (
+  "bufio"
+  "os"
+  "strings"
   "time"
 
   "github.com/golang/glog"
   apierrors "k8s.io/apimachinery/pkg/api/errors"
-  "k8s.io/apimachinery/pkg/util/wait"
   "k8s.io/client-go/tools/cache"
   "k8s.io/client-go/util/workqueue"
 
@@ -57,11 +59,52 @@ func (ctrl *IPDiscoveryController) Run(workers int, stopCh <-chan struct{}) {
     return
   }
 
-  for i := 0; i < workers; i++ {
-    go wait.Until(ctrl.vmWorker, time.Second, stopCh)
-  }
+  // for i := 0; i < workers; i++ {
+  //   go wait.Until(ctrl.vmWorker, time.Second, stopCh)
+  // }
+  go ctrl.updatePeriodically()
 
   <-stopCh
+}
+
+func (ctrl *IPDiscoveryController) updatePeriodically() {
+  c := time.Tick(5*time.Second)
+  for _ = range c {
+    ctrl.update()
+  }
+}
+
+func (ctrl *IPDiscoveryController) update() error {
+  glog.V(4).Infof("begin update")
+  defer glog.V(4).Infof("end update")
+  
+  arpHandle, err := os.Open("/proc/net/arp")
+  if err != nil {
+    glog.Warningf(err.Error())
+    return err
+  }
+  defer arpHandle.Close()
+
+  arp := bufio.NewScanner(arpHandle)
+  for arp.Scan() {
+    l := arp.Text()
+    // skip header
+    if strings.HasPrefix(l, "IP") {
+      continue
+    }
+    for _, x := range strings.Fields(l) {
+      glog.V(3).Infof(x)
+    }
+  }
+
+  // data, err := ioutil.ReadFile("/proc/net/arp")
+  // if err != nil {
+  //   glog.Warningf(err.Error())
+  //   return err
+  // }
+
+  // glog.V(3).Infof("%s", string(data))
+  return nil
 }
 
 func (ctrl *IPDiscoveryController) enqueueWork(queue workqueue.Interface, obj interface{}) {

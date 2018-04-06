@@ -25,6 +25,10 @@ type FakeVirtualmachineV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakeVirtualmachineV1alpha1) ARPTables(namespace string) v1alpha1.ARPTableInterface {
+	return &FakeARPTables{c, namespace}
+}
+
 func (c *FakeVirtualmachineV1alpha1) VirtualMachines(namespace string) v1alpha1.VirtualMachineInterface {
 	return &FakeVirtualMachines{c, namespace}
 }
