@@ -22,16 +22,64 @@ spec:
       containers:
       - name: vm-controller
         image: docker.io/llparse/ranchervm-controller:dev
+        args:
+        - -vm
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: rest-server
+  namespace: default
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: rest-server
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values: ["rest-server"]
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: rest-server
+        image: docker.io/llparse/ranchervm-controller:dev
+        args:
+        - -server
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: vm-controller
+  name: rest-server
 spec:
   ports:
   - name: api
     port: 9500
   selector:
-    app: vm-controller
-  # TODO should be ClusterIP (internal only)
+    app: rest-server
+  # TODO should be ClusterIP (internal only), exposed for development
   type: NodePort
+---
+apiVersion: apps/v1beta2
+kind: DaemonSet
+metadata:
+  name: ip-controller
+spec:
+  selector:
+    matchLabels:
+      app: ip-controller
+  template:
+    metadata:
+      labels:
+        app: ip-controller
+    spec:
+      containers:
+      - name: ip-controller
+        image: docker.io/llparse/ranchervm-controller:dev
+        args:
+        - -ip
