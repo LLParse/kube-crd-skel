@@ -21,27 +21,27 @@ type MachineImageType string
 
 const (
 	MachineImageAndroidX86 MachineImageType = "android-x86"
-	MachineImageCentOS MachineImageType = "centos"
-	MachineImageRancherOS MachineImageType = "rancheros"
-	MachineImageUbuntu MachineImageType = "ubuntu"
-	MachineImageWindows7 MachineImageType = "windows7"
+	MachineImageCentOS     MachineImageType = "centos"
+	MachineImageRancherOS  MachineImageType = "rancheros"
+	MachineImageUbuntu     MachineImageType = "ubuntu"
+	MachineImageWindows7   MachineImageType = "windows7"
 )
 
 type ActionType string
 
 const (
-	ActionStart ActionType = "start"
-	ActionStop ActionType = "stop"
+	ActionStart  ActionType = "start"
+	ActionStop   ActionType = "stop"
 	ActionReboot ActionType = "reboot"
 )
 
 // VirtualMachineSpec is the spec for a VirtualMachine resource
 type VirtualMachineSpec struct {
-	Cpus int32 `json:"cpus"`
-	MemoryMB  int32 `json:"memory_mb"`
+	Cpus         int32            `json:"cpus"`
+	MemoryMB     int32            `json:"memory_mb"`
 	MachineImage MachineImageType `json:"image"`
-	Action ActionType `json:"action"`
-	Disks VDisk `json:"disks"`
+	Action       ActionType       `json:"action"`
+	Disks        VDisk            `json:"disks"`
 }
 
 type VDisk struct {
@@ -113,16 +113,16 @@ type ARPTable struct {
 }
 
 type ARPEntry struct {
-	IP string `json:"ip"`
-	HWType string `json:"hw_type"`
-	Flags string `json:"flags"`
+	IP        string `json:"ip"`
+	HWType    string `json:"hw_type"`
+	Flags     string `json:"flags"`
 	HWAddress string `json:"hw_addr"`
-	Mask string `json:"mask"`
-	Device string `json:"device"`
+	Mask      string `json:"mask"`
+	Device    string `json:"device"`
 }
 
 type ARPTableSpec struct {
-	Table []ARPEntry `json:"table"`
+	Table map[string]ARPEntry `json:"table"`
 }
 
 type ARPTableStatus struct {

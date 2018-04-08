@@ -2,6 +2,8 @@
 
 REPO=${REPO:-llparse}
 
+# gofmt
+
 if [ "$IMAGE" == "" ]; then
   go build -o bin/vm-controller cmd/vm-controller/main.go
 else

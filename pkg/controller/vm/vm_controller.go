@@ -3,6 +3,7 @@ package vm
 import (
 	"fmt"
 	"math/rand"
+	"reflect"
 	"time"
 
 	"github.com/golang/glog"
@@ -159,7 +160,7 @@ func (ctrl *VirtualMachineController) updateVmPod(vm *vmapi.VirtualMachine) (err
 }
 
 func (ctrl *VirtualMachineController) updateNovncPod(vm *vmapi.VirtualMachine) (err error) {
-	pod, err := ctrl.podLister.Pods(vm.Namespace).Get(vm.Name+"-novnc")
+	pod, err := ctrl.podLister.Pods(vm.Namespace).Get(vm.Name + "-novnc")
 	switch {
 	case err == nil:
 		glog.V(2).Infof("Found existing novnc pod %s/%s", pod.Namespace, pod.Name)
@@ -181,7 +182,7 @@ func (ctrl *VirtualMachineController) updateNovncService(vm *vmapi.VirtualMachin
 	// FIXME shouldn't be hardcoded
 	nodeHostname := "kvm.local"
 
-	svc, err := ctrl.svcLister.Services(vm.Namespace).Get(vm.Name+"-novnc")
+	svc, err := ctrl.svcLister.Services(vm.Namespace).Get(vm.Name + "-novnc")
 	switch {
 	case err == nil:
 		glog.V(2).Infof("Found existing novnc service %s/%s", svc.Namespace, svc.Name)
@@ -203,10 +204,7 @@ func (ctrl *VirtualMachineController) updateNovncService(vm *vmapi.VirtualMachin
 }
 
 func (ctrl *VirtualMachineController) updateVMStatus(current *vmapi.VirtualMachine, updated *vmapi.VirtualMachine) (err error) {
-	if current.Status.State != updated.Status.State || 
-			current.Status.VncEndpoint != updated.Status.VncEndpoint ||
-			current.Status.ID != updated.Status.ID || 
-			current.Status.MAC != updated.Status.MAC {
+	if !reflect.DeepEqual(current.Status, updated.Status) {
 		updated, err = ctrl.vmClient.VirtualmachineV1alpha1().VirtualMachines(updated.Namespace).Update(updated)
 	}
 	return
@@ -270,7 +268,7 @@ func (ctrl *VirtualMachineController) deleteVmPod(ns, name string) (err error) {
 	if _, err = ctrl.podLister.Pods(ns).Get(name); err == nil {
 		glog.V(2).Infof("trying to delete vm pod %s/%s", ns, name)
 		// TODO soft delete?
-		err = ctrl.kubeClient.CoreV1().Pods(ns).Delete(name, &metav1.DeleteOptions{})		
+		err = ctrl.kubeClient.CoreV1().Pods(ns).Delete(name, &metav1.DeleteOptions{})
 	}
 	return
 }

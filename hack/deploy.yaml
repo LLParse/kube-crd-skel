@@ -84,7 +84,7 @@ spec:
         image: docker.io/llparse/ranchervm-controller:dev
         command: [ "sh", "-c"]
         args:
-        - /vm-controller -ip -nodename ${MY_NODE_NAME} -v 3
+        - exec /vm-controller -ip -nodename ${MY_NODE_NAME} -v 3
         env:
         - name: MY_NODE_NAME
           valueFrom:
@@ -94,10 +94,10 @@ spec:
         image: docker.io/llparse/ranchervm-controller:dev
         command: [ "bash", "-c"]
         args:
-        - iface=br0;
-          inet_addr=$(ifconfig $iface | grep "inet " | awk '{print $2}' | cut -d':' -f2);
-          inet_mask=$(ifconfig $iface | grep "inet " | awk '{print $4}' | cut -d':' -f2);
-          while true; do
+        - while true; do
+            iface=br0;
+            inet_addr=$(ifconfig $iface | grep "inet " | awk '{print $2}' | cut -d':' -f2);
+            inet_mask=$(ifconfig $iface | grep "inet " | awk '{print $4}' | cut -d':' -f2);
             ips="$(arp-scan -interface=$iface $inet_addr:$inet_mask | awk -F'\t' '$2 ~ /[0-9a-f][0-9a-f]:/ {print $1}')";
             for ip in $ips; do 
               ping -c 1 -t 1 $ip &>/dev/null & 

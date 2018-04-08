@@ -71,6 +71,8 @@ func main() {
 		go ip.NewIPDiscoveryController(
 			vmClientset,
 			vmInformerFactory.Virtualmachine().V1alpha1().ARPTables(),
+			vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
+			kubeInformerFactory.Core().V1().Namespaces(),
 			*nodeName,
 		).Run(*workers, stopCh)
 	}
@@ -78,7 +80,9 @@ func main() {
 	if *serv {
 		go server.NewServer(
 			vmClientset,
+			kubeClientset,
 			vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
+			kubeInformerFactory.Core().V1().Nodes(),
 		).Run(stopCh)
 	}
 

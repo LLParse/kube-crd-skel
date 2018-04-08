@@ -158,8 +158,10 @@ func (in *ARPTableSpec) DeepCopyInto(out *ARPTableSpec) {
 	*out = *in
 	if in.Table != nil {
 		in, out := &in.Table, &out.Table
-		*out = make([]ARPEntry, len(*in))
-		copy(*out, *in)
+		*out = make(map[string]ARPEntry, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
 	}
 	return
 }
