@@ -17,4 +17,6 @@ package v1alpha1
 
 type ARPTableExpansion interface{}
 
+type CredentialExpansion interface{}
+
 type VirtualMachineExpansion interface{}

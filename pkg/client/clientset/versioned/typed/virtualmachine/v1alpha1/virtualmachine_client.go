@@ -25,6 +25,7 @@ import (
 type VirtualmachineV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	ARPTablesGetter
+	CredentialsGetter
 	VirtualMachinesGetter
 }
 
@@ -35,6 +36,10 @@ type VirtualmachineV1alpha1Client struct {
 
 func (c *VirtualmachineV1alpha1Client) ARPTables() ARPTableInterface {
 	return newARPTables(c)
+}
+
+func (c *VirtualmachineV1alpha1Client) Credentials() CredentialInterface {
+	return newCredentials(c)
 }
 
 func (c *VirtualmachineV1alpha1Client) VirtualMachines(namespace string) VirtualMachineInterface {

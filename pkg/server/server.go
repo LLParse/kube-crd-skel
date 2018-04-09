@@ -23,6 +23,8 @@ type server struct {
 	vmListerSynced   cache.InformerSynced
 	nodeLister       corelisters.NodeLister
 	nodeListerSynced cache.InformerSynced
+	credLister vmlisters.CredentialLister
+	credListerSynced cache.InformerSynced
 }
 
 func NewServer(
@@ -30,6 +32,7 @@ func NewServer(
 	kubeClient kubernetes.Interface,
 	vmInformer vminformers.VirtualMachineInformer,
 	nodeInformer coreinformers.NodeInformer,
+	credInformer vminformers.CredentialInformer,
 ) *server {
 
 	return &server{
@@ -40,11 +43,13 @@ func NewServer(
 		vmListerSynced:   vmInformer.Informer().HasSynced,
 		nodeLister:       nodeInformer.Lister(),
 		nodeListerSynced: nodeInformer.Informer().HasSynced,
+		credLister: credInformer.Lister(),
+		credListerSynced: credInformer.Informer().HasSynced,
 	}
 }
 
 func (s *server) Run(stopCh <-chan struct{}) {
-	if !cache.WaitForCacheSync(stopCh, s.vmListerSynced, s.nodeListerSynced) {
+	if !cache.WaitForCacheSync(stopCh, s.vmListerSynced, s.nodeListerSynced, s.credListerSynced) {
 		return
 	}
 
@@ -62,7 +67,9 @@ func (s *server) newRouter() *mux.Router {
 	r.Methods("POST").Path("/v1/instances").Handler(http.HandlerFunc(s.InstanceCreate))
 	r.Methods("DELETE").Path("/v1/instances/{ns}/{name}").Handler(http.HandlerFunc(s.InstanceDelete))
 	r.Methods("POST").Path("/v1/instances/{ns}/{name}/{action}").Handler(http.HandlerFunc(s.InstanceAction))
-
 	r.Methods("GET").Path("/v1/host").Handler(http.HandlerFunc(s.NodeList))
+
+	r.Methods("GET").Path("/v1/credential").Handler(http.HandlerFunc(s.CredentialList))
+	r.Methods("DELETE").Path("/v1/credential/{name}").Handler(http.HandlerFunc(s.CredentialDelete))
 	return r
 }

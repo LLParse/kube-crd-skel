@@ -136,3 +136,33 @@ type ARPTableList struct {
 
 	Items []ARPTable `json:"items"`
 }
+
+// +genclient
+// +genclient:noStatus
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// Credential is a public key that may be used to connect to VMs
+type Credential struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   CredentialSpec   `json:"spec"`
+	Status CredentialStatus `json:"status"`
+}
+
+type CredentialSpec struct {
+	PublicKey string `json:"public_key"`
+}
+
+type CredentialStatus struct {
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+type CredentialList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []Credential `json:"items"`
+}

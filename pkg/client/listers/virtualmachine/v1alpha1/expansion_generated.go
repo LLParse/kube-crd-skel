@@ -22,6 +22,10 @@ package v1alpha1
 // ARPTableLister.
 type ARPTableListerExpansion interface{}
 
+// CredentialListerExpansion allows custom methods to be added to
+// CredentialLister.
+type CredentialListerExpansion interface{}
+
 // VirtualMachineListerExpansion allows custom methods to be added to
 // VirtualMachineLister.
 type VirtualMachineListerExpansion interface{}

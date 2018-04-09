@@ -26,6 +26,8 @@ import (
 type Interface interface {
 	// ARPTables returns a ARPTableInformer.
 	ARPTables() ARPTableInformer
+	// Credentials returns a CredentialInformer.
+	Credentials() CredentialInformer
 	// VirtualMachines returns a VirtualMachineInformer.
 	VirtualMachines() VirtualMachineInformer
 }
@@ -42,6 +44,11 @@ func New(f internalinterfaces.SharedInformerFactory) Interface {
 // ARPTables returns a ARPTableInformer.
 func (v *version) ARPTables() ARPTableInformer {
 	return &aRPTableInformer{factory: v.SharedInformerFactory}
+}
+
+// Credentials returns a CredentialInformer.
+func (v *version) Credentials() CredentialInformer {
+	return &credentialInformer{factory: v.SharedInformerFactory}
 }
 
 // VirtualMachines returns a VirtualMachineInformer.

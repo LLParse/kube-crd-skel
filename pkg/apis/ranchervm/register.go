@@ -157,3 +157,58 @@ func CreateVirtualMachineDefinition(clientset apiextensionsclient.Interface) err
 	}
 	return nil
 }
+
+func CreateCredentialDefinition(clientset apiextensionsclient.Interface) error {
+	key := &apiextensionsv1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "credentials." + GroupName,
+		},
+		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
+			Group:   GroupName,
+			Version: "v1alpha1",
+			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
+				Plural:     "credentials",
+				Singular:   "credential",
+				Kind:       "Credential",
+				ShortNames: []string{"creds", "cred"},
+			},
+			Scope: apiextensionsv1beta1.ClusterScoped,
+		},
+	}
+	if _, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(key); err != nil {
+		return err
+	}
+
+	// Wait for CRD to be established
+	if err := wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
+		arp, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
+			Get("arptables."+GroupName, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+
+		for _, cond := range arp.Status.Conditions {
+			switch cond.Type {
+			case apiextensionsv1beta1.Established:
+				if cond.Status == apiextensionsv1beta1.ConditionTrue {
+					return true, err
+				}
+			case apiextensionsv1beta1.NamesAccepted:
+				if cond.Status == apiextensionsv1beta1.ConditionFalse {
+					fmt.Printf("Name conflict: %v\n", cond.Reason)
+				}
+			}
+		}
+
+		return false, err
+	}); err != nil {
+		deleteArpErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
+			Delete("arptables."+GroupName, nil)
+
+		if deleteArpErr != nil {
+			return errors.NewAggregate([]error{err, deleteArpErr})
+		}
+		return err
+	}
+	return nil
+}

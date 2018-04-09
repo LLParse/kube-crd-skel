@@ -46,6 +46,9 @@ func main() {
 	if err := ranchervm.CreateARPTableDefinition(apiextensionsclientset); err != nil && !apierrors.IsAlreadyExists(err) {
 		panic(err)
 	}
+	if err := ranchervm.CreateCredentialDefinition(apiextensionsclientset); err != nil && !apierrors.IsAlreadyExists(err) {
+		panic(err)
+	}
 
 	vmClientset := versioned.NewForConfigOrDie(config)
 	vmInformerFactory := externalversions.NewSharedInformerFactory(vmClientset, 0*time.Second)
@@ -54,8 +57,6 @@ func main() {
 	kubeInformerFactory := informers.NewSharedInformerFactory(kubeClientset, 0*time.Second)
 
 	stopCh := makeStopChan()
-
-	// FIXME don't create/start informers unless necessary
 
 	if *vmCtrl {
 		go vm.NewVirtualMachineController(
@@ -83,6 +84,7 @@ func main() {
 			kubeClientset,
 			vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
 			kubeInformerFactory.Core().V1().Nodes(),
+			vmInformerFactory.Virtualmachine().V1alpha1().Credentials(),
 		).Run(stopCh)
 	}
 
