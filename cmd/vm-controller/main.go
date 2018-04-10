@@ -65,6 +65,7 @@ func main() {
 			vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
 			kubeInformerFactory.Core().V1().Pods(),
 			kubeInformerFactory.Core().V1().Services(),
+			vmInformerFactory.Virtualmachine().V1alpha1().Credentials(),
 		).Run(*workers, stopCh)
 	}
 

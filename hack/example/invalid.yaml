@@ -1,8 +1,0 @@
-apiVersion: vm.rancher.com/v1alpha1
-kind: VirtualMachine
-metadata:
-  name: example
-spec:
-  cpus: 161
-  memory_mb: 1024
-

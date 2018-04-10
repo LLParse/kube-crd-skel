@@ -29,12 +29,14 @@ type VirtualMachineController struct {
 	vmClient   vmclientset.Interface
 	kubeClient kubernetes.Interface
 
-	vmLister        vmlisters.VirtualMachineLister
-	vmListerSynced  cache.InformerSynced
-	podLister       corelisters.PodLister
-	podListerSynced cache.InformerSynced
-	svcLister       corelisters.ServiceLister
-	svcListerSynced cache.InformerSynced
+	vmLister         vmlisters.VirtualMachineLister
+	vmListerSynced   cache.InformerSynced
+	podLister        corelisters.PodLister
+	podListerSynced  cache.InformerSynced
+	svcLister        corelisters.ServiceLister
+	svcListerSynced  cache.InformerSynced
+	credLister       vmlisters.CredentialLister
+	credListerSynced cache.InformerSynced
 
 	vmQueue  workqueue.RateLimitingInterface
 	podQueue workqueue.RateLimitingInterface
@@ -50,6 +52,7 @@ func NewVirtualMachineController(
 	vmInformer vminformers.VirtualMachineInformer,
 	podInformer coreinformers.PodInformer,
 	svcInformer coreinformers.ServiceInformer,
+	credInformer vminformers.CredentialInformer,
 ) *VirtualMachineController {
 
 	ctrl := &VirtualMachineController{
@@ -89,6 +92,9 @@ func NewVirtualMachineController(
 	ctrl.svcLister = svcInformer.Lister()
 	ctrl.svcListerSynced = svcInformer.Informer().HasSynced
 
+	ctrl.credLister = credInformer.Lister()
+	ctrl.credListerSynced = credInformer.Informer().HasSynced
+
 	return ctrl
 }
 
@@ -98,7 +104,7 @@ func (ctrl *VirtualMachineController) Run(workers int, stopCh <-chan struct{}) {
 	glog.Infof("Starting vm controller")
 	defer glog.Infof("Shutting down vm Controller")
 
-	if !cache.WaitForCacheSync(stopCh, ctrl.vmListerSynced, ctrl.podListerSynced, ctrl.svcListerSynced) {
+	if !cache.WaitForCacheSync(stopCh, ctrl.vmListerSynced, ctrl.podListerSynced, ctrl.svcListerSynced, ctrl.credListerSynced) {
 		return
 	}
 
@@ -148,7 +154,16 @@ func (ctrl *VirtualMachineController) updateVmPod(vm *vmapi.VirtualMachine) (err
 		glog.V(2).Infof("error getting vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
 		return
 	} else {
-		_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeVMPod(vm, IFACE))
+		var publicKeys []*vmapi.Credential
+		for _, publicKeyName := range vm.Spec.PublicKeys {
+			publicKey, err := ctrl.credLister.Get(publicKeyName)
+			if err != nil {
+				continue
+			}
+			publicKeys = append(publicKeys, publicKey)
+		}
+
+		_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeVMPod(vm, publicKeys, IFACE))
 		if err != nil {
 			glog.V(2).Infof("Error creating vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
 			return

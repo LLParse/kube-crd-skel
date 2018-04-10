@@ -41,6 +41,7 @@ type VirtualMachineSpec struct {
 	MemoryMB     int32            `json:"memory_mb"`
 	MachineImage MachineImageType `json:"image"`
 	Action       ActionType       `json:"action"`
+	PublicKeys   []string         `json:"public_keys"`
 	Disks        VDisk            `json:"disks"`
 }
 

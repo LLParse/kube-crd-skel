@@ -23,7 +23,7 @@ type server struct {
 	vmListerSynced   cache.InformerSynced
 	nodeLister       corelisters.NodeLister
 	nodeListerSynced cache.InformerSynced
-	credLister vmlisters.CredentialLister
+	credLister       vmlisters.CredentialLister
 	credListerSynced cache.InformerSynced
 }
 
@@ -43,7 +43,7 @@ func NewServer(
 		vmListerSynced:   vmInformer.Informer().HasSynced,
 		nodeLister:       nodeInformer.Lister(),
 		nodeListerSynced: nodeInformer.Informer().HasSynced,
-		credLister: credInformer.Lister(),
+		credLister:       credInformer.Lister(),
 		credListerSynced: credInformer.Informer().HasSynced,
 	}
 }

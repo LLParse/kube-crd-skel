@@ -63,6 +63,46 @@ func createVirtualMachineDefinition() *apiextensionsv1beta1.CustomResourceDefini
 	}
 }
 
+func CreateVirtualMachineDefinition(clientset apiextensionsclient.Interface) error {
+	vm := createVirtualMachineDefinition()
+	if _, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(vm); err != nil {
+		return err
+	}
+
+	// Wait for CRD to be established
+	if err := wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
+		vm, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
+			Get("virtualmachines."+GroupName, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+
+		for _, cond := range vm.Status.Conditions {
+			switch cond.Type {
+			case apiextensionsv1beta1.Established:
+				if cond.Status == apiextensionsv1beta1.ConditionTrue {
+					break
+				}
+			case apiextensionsv1beta1.NamesAccepted:
+				if cond.Status == apiextensionsv1beta1.ConditionFalse {
+					fmt.Printf("Name conflict: %v\n", cond.Reason)
+				}
+			}
+		}
+
+		return false, err
+	}); err != nil {
+		deleteVmErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
+			Delete("virtualmachines."+GroupName, nil)
+
+		if deleteVmErr != nil {
+			return errors.NewAggregate([]error{err, deleteVmErr})
+		}
+		return err
+	}
+	return nil
+}
+
 func CreateARPTableDefinition(clientset apiextensionsclient.Interface) error {
 	arp := &apiextensionsv1beta1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
@@ -112,46 +152,6 @@ func CreateARPTableDefinition(clientset apiextensionsclient.Interface) error {
 
 		if deleteArpErr != nil {
 			return errors.NewAggregate([]error{err, deleteArpErr})
-		}
-		return err
-	}
-	return nil
-}
-
-func CreateVirtualMachineDefinition(clientset apiextensionsclient.Interface) error {
-	vm := createVirtualMachineDefinition()
-	if _, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(vm); err != nil {
-		return err
-	}
-
-	// Wait for CRD to be established
-	if err := wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
-		vm, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
-			Get("virtualmachines."+GroupName, metav1.GetOptions{})
-		if err != nil {
-			return false, err
-		}
-
-		for _, cond := range vm.Status.Conditions {
-			switch cond.Type {
-			case apiextensionsv1beta1.Established:
-				if cond.Status == apiextensionsv1beta1.ConditionTrue {
-					break
-				}
-			case apiextensionsv1beta1.NamesAccepted:
-				if cond.Status == apiextensionsv1beta1.ConditionFalse {
-					fmt.Printf("Name conflict: %v\n", cond.Reason)
-				}
-			}
-		}
-
-		return false, err
-	}); err != nil {
-		deleteVmErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
-			Delete("virtualmachines."+GroupName, nil)
-
-		if deleteVmErr != nil {
-			return errors.NewAggregate([]error{err, deleteVmErr})
 		}
 		return err
 	}

@@ -91,7 +91,7 @@ func makeHostStateVol(vmNamespace, vmName, volName string) corev1.Volume {
 
 var privileged = true
 
-func makeVMPod(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
+func makeVMPod(vm *v1alpha1.VirtualMachine, publicKeys []*v1alpha1.Credential, iface string) *corev1.Pod {
 	cpu := strconv.Itoa(int(vm.Spec.Cpus))
 	mem := strconv.Itoa(int(vm.Spec.MemoryMB))
 	image := string(vm.Spec.MachineImage)
@@ -111,6 +111,50 @@ func makeVMPod(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
 		PeriodSeconds:       3,
 		SuccessThreshold:    1,
 		FailureThreshold:    10,
+	}
+
+	vmContainer := corev1.Container{
+		Name:    "vm",
+		Image:   fmt.Sprintf("llparse/vm-%s", string(vm.Spec.MachineImage)),
+		Command: []string{"/usr/bin/startvm"},
+		Env: []corev1.EnvVar{
+			makeEnvVarFieldPath("MY_POD_NAME", "metadata.name"),
+			makeEnvVarFieldPath("MY_POD_NAMESPACE", "metadata.namespace"),
+			makeEnvVar("IFACE", iface, nil),
+			makeEnvVar("MEMORY_MB", mem, nil),
+			makeEnvVar("CPUS", cpu, nil),
+			makeEnvVar("MAC", vm.Status.MAC, nil),
+			makeEnvVar("INSTANCE_ID", vm.Status.ID, nil),
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			makeVolumeMount("vm-image", "/image", "", false),
+			makeVolumeMount("dev-kvm", "/dev/kvm", "", false),
+			makeVolumeMount("vm-socket", "/vm", "", false),
+			makeVolumeMount("vm-fs", "/bin", "bin", true),
+			// kubernetes mounts /etc/hosts, /etc/hostname, /etc/resolv.conf
+			// we must grant write permissions to /etc to allow these mounts
+			makeVolumeMount("vm-fs", "/etc", "etc", false),
+			makeVolumeMount("vm-fs", "/lib", "lib", true),
+			makeVolumeMount("vm-fs", "/lib64", "lib64", true),
+			makeVolumeMount("vm-fs", "/sbin", "sbin", true),
+			makeVolumeMount("vm-fs", "/usr", "usr", true),
+			makeVolumeMount("vm-fs", "/var", "var", true),
+		},
+		LivenessProbe: vncProbe,
+		// TODO readinessProbe could be used for checking SSH/RDP/etc
+		ReadinessProbe: vncProbe,
+		// ImagePullPolicy: corev1.PullPolicy{},
+		SecurityContext: &corev1.SecurityContext{
+			Privileged: &privileged,
+		},
+	}
+
+	// add public keys to env vars
+	vmContainer.Env = append(vmContainer.Env,
+		makeEnvVar("PUBLIC_KEY_COUNT", strconv.Itoa(len(publicKeys)), nil))
+	for i, publicKey := range publicKeys {
+		vmContainer.Env = append(vmContainer.Env,
+			makeEnvVar(fmt.Sprintf("PUBLIC_KEY_%d", i+1), publicKey.Spec.PublicKey, nil))
 	}
 
 	return &corev1.Pod{
@@ -146,41 +190,7 @@ func makeVMPod(vm *v1alpha1.VirtualMachine, iface string) *corev1.Pod {
 				},
 			},
 			Containers: []corev1.Container{
-				corev1.Container{
-					Name:    "vm",
-					Image:   fmt.Sprintf("llparse/vm-%s", string(vm.Spec.MachineImage)),
-					Command: []string{"/usr/bin/startvm"},
-					Env: []corev1.EnvVar{
-						makeEnvVar("IFACE", iface, nil),
-						makeEnvVar("MEMORY_MB", mem, nil),
-						makeEnvVar("CPUS", cpu, nil),
-						makeEnvVar("MAC", vm.Status.MAC, nil),
-						// Use downward API so we can uniquely name VNC socket
-						makeEnvVarFieldPath("MY_POD_NAME", "metadata.name"),
-						makeEnvVarFieldPath("MY_POD_NAMESPACE", "metadata.namespace"),
-					},
-					VolumeMounts: []corev1.VolumeMount{
-						makeVolumeMount("vm-image", "/image", "", false),
-						makeVolumeMount("dev-kvm", "/dev/kvm", "", false),
-						makeVolumeMount("vm-socket", "/vm", "", false),
-						makeVolumeMount("vm-fs", "/bin", "bin", true),
-						// kubernetes mounts /etc/hosts, /etc/hostname, /etc/resolv.conf
-						// we must grant write permissions to /etc to allow these mounts
-						makeVolumeMount("vm-fs", "/etc", "etc", false),
-						makeVolumeMount("vm-fs", "/lib", "lib", true),
-						makeVolumeMount("vm-fs", "/lib64", "lib64", true),
-						makeVolumeMount("vm-fs", "/sbin", "sbin", true),
-						makeVolumeMount("vm-fs", "/usr", "usr", true),
-						makeVolumeMount("vm-fs", "/var", "var", true),
-					},
-					LivenessProbe: vncProbe,
-					// TODO readinessProbe could be used for checking SSH/RDP/etc
-					ReadinessProbe: vncProbe,
-					// ImagePullPolicy: corev1.PullPolicy{},
-					SecurityContext: &corev1.SecurityContext{
-						Privileged: &privileged,
-					},
-				},
+				vmContainer,
 			},
 			HostNetwork: true,
 		},
