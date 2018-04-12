@@ -46,6 +46,7 @@ type InstanceCreate struct {
 	Memory    int32  `json:"memory"`
 	Image     string `json:"image"`
 	Action    string `json:"action"`
+	PublicKeys []string `json:"pubkey"`
 }
 
 func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
@@ -53,6 +54,19 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case strings.HasPrefix(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded"):
 		r.ParseForm()
+
+		if len(r.PostForm["ns"]) != 1 ||
+			len(r.PostForm["name"]) != 1 ||
+			len(r.PostForm["cpus"]) != 1 ||
+			len(r.PostForm["mem"]) != 1 ||
+			len(r.PostForm["image"]) != 1 ||
+			len(r.PostForm["pubkey"]) < 1 ||
+			len(r.PostForm["action"]) != 1 {
+
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
 		cpus, _ := strconv.Atoi(r.PostForm["cpus"][0])
 		mem, _ := strconv.Atoi(r.PostForm["mem"][0])
 		ic = InstanceCreate{
@@ -62,6 +76,7 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 			Memory:    int32(mem),
 			Image:     r.PostForm["image"][0],
 			Action:    r.PostForm["action"][0],
+			PublicKeys: r.PostForm["pubkey"],
 		}
 	case strings.HasPrefix(r.Header.Get("Content-Type"), "application/json"):
 		defer r.Body.Close()
@@ -80,7 +95,17 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO validate result
+	if !isValidNamespace(ic.Namespace) ||
+		!isValidName(ic.Name) ||
+		!isValidCpus(ic.Cpus) ||
+		!isValidMemory(ic.Memory) ||
+		!isValidImage(ic.Image) ||
+		!isValidAction(vmapi.ActionType(ic.Action)) ||
+		!isValidPublicKeys(ic.PublicKeys) {
+
+		w.WriteHeader(http.StatusBadRequest)
+		return 
+	}
 
 	// check for conflicts
 	vm, err := s.vmLister.VirtualMachines(ic.Namespace).Get(ic.Name)
@@ -101,6 +126,7 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 			MemoryMB:     ic.Memory,
 			MachineImage: vmapi.MachineImageType(ic.Image),
 			Action:       vmapi.ActionType(ic.Action),
+			PublicKeys:   ic.PublicKeys,
 		},
 	}
 
@@ -116,12 +142,20 @@ func (s *server) InstanceDelete(w http.ResponseWriter, r *http.Request) {
 	ns := mux.Vars(r)["ns"]
 	name := mux.Vars(r)["name"]
 
+	if !nsRegexp.MatchString(ns) || !nameRegexp.MatchString(name) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	err := s.vmClient.VirtualmachineV1alpha1().VirtualMachines(ns).Delete(name, &metav1.DeleteOptions{})
-	if err != nil {
+	switch {
+	case err == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case apierrors.IsNotFound(err):
+		w.WriteHeader(http.StatusNotFound)
+	default:
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
-	} else {
-		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
@@ -129,9 +163,21 @@ func (s *server) InstanceAction(w http.ResponseWriter, r *http.Request) {
 	ns := mux.Vars(r)["ns"]
 	name := mux.Vars(r)["name"]
 	action := mux.Vars(r)["action"]
+	actionType := vmapi.ActionType(action)
+
+	if !nsRegexp.MatchString(ns) || !nameRegexp.MatchString(name) || !isValidAction(actionType) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	vm, err := s.vmLister.VirtualMachines(ns).Get(name)
-	if err != nil {
+	switch {
+	case err == nil:
+		break
+	case apierrors.IsNotFound(err):
+		w.WriteHeader(http.StatusNotFound)
+		return
+	default:
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 		return

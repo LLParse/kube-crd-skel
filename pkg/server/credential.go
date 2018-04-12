@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
@@ -38,11 +39,19 @@ func (s *server) CredentialList(w http.ResponseWriter, r *http.Request) {
 func (s *server) CredentialDelete(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 
+	if !nameRegexp.MatchString(name) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	err := s.vmClient.VirtualmachineV1alpha1().Credentials().Delete(name, &metav1.DeleteOptions{})
-	if err != nil {
+	switch {
+	case err == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case apierrors.IsNotFound(err):
+		w.WriteHeader(http.StatusNotFound)
+	default:
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
-	} else {
-		w.WriteHeader(http.StatusNoContent)
 	}
 }
