@@ -9,7 +9,6 @@ import (
 
 	"github.com/golang/glog"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -40,13 +39,13 @@ func main() {
 	}
 
 	apiextensionsclientset := apiextensionsclient.NewForConfigOrDie(config)
-	if err := ranchervm.CreateVirtualMachineDefinition(apiextensionsclientset); err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := ranchervm.CreateVirtualMachineDefinition(apiextensionsclientset); err != nil {
 		panic(err)
 	}
-	if err := ranchervm.CreateARPTableDefinition(apiextensionsclientset); err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := ranchervm.CreateARPTableDefinition(apiextensionsclientset); err != nil {
 		panic(err)
 	}
-	if err := ranchervm.CreateCredentialDefinition(apiextensionsclientset); err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := ranchervm.CreateCredentialDefinition(apiextensionsclientset); err != nil {
 		panic(err)
 	}
 

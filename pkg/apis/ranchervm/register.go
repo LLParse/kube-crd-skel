@@ -8,7 +8,6 @@ import (
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
@@ -66,7 +65,7 @@ func createVirtualMachineDefinition() *apiextensionsv1beta1.CustomResourceDefini
 
 func CreateVirtualMachineDefinition(clientset apiextensionsclient.Interface) error {
 	vm := createVirtualMachineDefinition()
-	_, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(vm)
+	vm, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(vm)
 	switch {
 	case err == nil:
 		break
@@ -77,13 +76,12 @@ func CreateVirtualMachineDefinition(clientset apiextensionsclient.Interface) err
 	}
 
 	// Wait for CRD to be established
-	if err := wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
+	err = wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
 		vm, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
 			Get("virtualmachines."+GroupName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
-
 		for _, cond := range vm.Status.Conditions {
 			switch cond.Type {
 			case apiextensionsv1beta1.Established:
@@ -96,18 +94,9 @@ func CreateVirtualMachineDefinition(clientset apiextensionsclient.Interface) err
 				}
 			}
 		}
-
 		return false, err
-	}); err != nil {
-		deleteVmErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
-			Delete("virtualmachines."+GroupName, nil)
-
-		if deleteVmErr != nil {
-			return errors.NewAggregate([]error{err, deleteVmErr})
-		}
-		return err
-	}
-	return nil
+	})
+	return err
 }
 
 func CreateARPTableDefinition(clientset apiextensionsclient.Interface) error {
@@ -139,13 +128,12 @@ func CreateARPTableDefinition(clientset apiextensionsclient.Interface) error {
 	}
 
 	// Wait for CRD to be established
-	if err := wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
+	err = wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
 		arp, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
 			Get("arptables."+GroupName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
-
 		for _, cond := range arp.Status.Conditions {
 			switch cond.Type {
 			case apiextensionsv1beta1.Established:
@@ -158,18 +146,9 @@ func CreateARPTableDefinition(clientset apiextensionsclient.Interface) error {
 				}
 			}
 		}
-
 		return false, err
-	}); err != nil {
-		deleteArpErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
-			Delete("arptables."+GroupName, nil)
-
-		if deleteArpErr != nil {
-			return errors.NewAggregate([]error{err, deleteArpErr})
-		}
-		return err
-	}
-	return nil
+	})
+	return err
 }
 
 func CreateCredentialDefinition(clientset apiextensionsclient.Interface) error {
@@ -201,13 +180,12 @@ func CreateCredentialDefinition(clientset apiextensionsclient.Interface) error {
 	}
 
 	// Wait for CRD to be established
-	if err := wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
+	err = wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
 		arp, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
 			Get("arptables."+GroupName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
-
 		for _, cond := range arp.Status.Conditions {
 			switch cond.Type {
 			case apiextensionsv1beta1.Established:
@@ -220,16 +198,7 @@ func CreateCredentialDefinition(clientset apiextensionsclient.Interface) error {
 				}
 			}
 		}
-
 		return false, err
-	}); err != nil {
-		deleteArpErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().
-			Delete("arptables."+GroupName, nil)
-
-		if deleteArpErr != nil {
-			return errors.NewAggregate([]error{err, deleteArpErr})
-		}
-		return err
-	}
-	return nil
+	})
+	return err
 }
