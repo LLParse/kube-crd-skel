@@ -252,6 +252,18 @@ func (ctrl *VirtualMachineController) stopVM(vm *vmapi.VirtualMachine) (err erro
 	default:
 		vm2.Status.State = vmapi.StateError
 	}
+
+	err = ctrl.deleteNovncPod(vm.Namespace, vm.Name)
+	switch {
+	case err == nil:
+		// if either the vm or novnc pod had to be deleted, we are stopping
+		vm2.Status.State = vmapi.StateStopping
+	case apierrors.IsNotFound(err):
+		// if the novnc was already deleted, our state is dictated by the vm pod delete
+	default:
+		vm2.Status.State = vmapi.StateError
+	}
+
 	err = ctrl.updateVMStatus(vm, vm2)
 	return
 }
@@ -279,27 +291,24 @@ func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
 	}
 }
 
-func (ctrl *VirtualMachineController) deleteVmPod(ns, name string) (err error) {
-	if _, err = ctrl.podLister.Pods(ns).Get(name); err == nil {
-		glog.V(2).Infof("trying to delete vm pod %s/%s", ns, name)
-		// TODO soft delete?
-		err = ctrl.kubeClient.CoreV1().Pods(ns).Delete(name, &metav1.DeleteOptions{})
-	}
-	return
+func (ctrl *VirtualMachineController) deleteVmPod(ns, name string) error {
+	glog.V(2).Infof("trying to delete vm pod %s/%s", ns, name)
+	// TODO soft delete?
+	return ctrl.kubeClient.CoreV1().Pods(ns).Delete(name, &metav1.DeleteOptions{})
 }
 
-// do NOT use VM object in method signature
+func (ctrl *VirtualMachineController) deleteNovncPod(ns, name string) error {
+	glog.V(2).Infof("trying to delete novnc pod %s/%s", ns, name)
+	// TODO soft delete?
+	return ctrl.kubeClient.CoreV1().Pods(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
+}
+
 func (ctrl *VirtualMachineController) deleteVM(ns, name string) {
 	ctrl.deleteVmPod(ns, name)
-
-	glog.V(2).Infof("trying to delete novnc pod %s/%s", ns, name)
-	err := ctrl.kubeClient.CoreV1().Pods(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
-		glog.V(2).Infof("error deleting novnc pod %s/%s: %v", ns, name, err)
-	}
+	ctrl.deleteNovncPod(ns, name)
 
 	glog.V(2).Infof("trying to delete novnc service %s/%s", ns, name)
-	err = ctrl.kubeClient.CoreV1().Services(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
+	err := ctrl.kubeClient.CoreV1().Services(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		glog.V(2).Infof("error deleting novnc service %s/%s: %v", ns, name, err)
 	}

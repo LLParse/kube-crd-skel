@@ -6,6 +6,7 @@ import (
 
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -65,7 +66,13 @@ func createVirtualMachineDefinition() *apiextensionsv1beta1.CustomResourceDefini
 
 func CreateVirtualMachineDefinition(clientset apiextensionsclient.Interface) error {
 	vm := createVirtualMachineDefinition()
-	if _, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(vm); err != nil {
+	_, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(vm)
+	switch {
+	case err == nil:
+		break
+	case apierrors.IsAlreadyExists(err):
+		return nil
+	default:
 		return err
 	}
 
@@ -120,7 +127,14 @@ func CreateARPTableDefinition(clientset apiextensionsclient.Interface) error {
 			Scope: apiextensionsv1beta1.ClusterScoped,
 		},
 	}
-	if _, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(arp); err != nil {
+
+	_, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(arp)
+	switch {
+	case err == nil:
+		break
+	case apierrors.IsAlreadyExists(err):
+		return nil
+	default:
 		return err
 	}
 
@@ -175,7 +189,14 @@ func CreateCredentialDefinition(clientset apiextensionsclient.Interface) error {
 			Scope: apiextensionsv1beta1.ClusterScoped,
 		},
 	}
-	if _, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(key); err != nil {
+
+	_, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(key)
+	switch {
+	case err == nil:
+		break
+	case apierrors.IsAlreadyExists(err):
+		return nil
+	default:
 		return err
 	}
 

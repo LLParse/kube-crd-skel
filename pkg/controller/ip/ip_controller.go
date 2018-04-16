@@ -97,30 +97,24 @@ func (ctrl *IPDiscoveryController) updateVMs(arpTable *vmapi.ARPTable, nodeName 
 
 	for _, ns := range namespaces {
 		vms, err := ctrl.vmLister.VirtualMachines(ns.Name).List(labels.Everything())
-		glog.Infof("vms: %v", vms)
-		glog.Infof("err: %v", err)
 		if err != nil {
 			return err
 		}
 
 		arpMap := arpTable.Spec.Table
 		for _, vm := range vms {
-			glog.Infof("vm: %+v", vm)
 			// ip resolution requires a mac address
 			if vm.Status.MAC == "" {
 				continue
 			}
-			glog.Infof("has mac")
 
 			if vm.Status.IP == "" {
-				glog.Infof("no ip")
 				if entry, ok := arpMap[vm.Status.MAC]; ok {
 					vm2 := vm.DeepCopy()
 					vm2.Status.IP = entry.IP
 					ctrl.updateVMStatus(vm, vm2)
 				}
 			} else {
-				glog.Infof("has ip")
 				if entry, ok := arpMap[vm.Status.MAC]; ok && entry.IP != vm.Status.IP {
 					vm2 := vm.DeepCopy()
 					vm2.Status.IP = entry.IP

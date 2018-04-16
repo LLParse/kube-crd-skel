@@ -6,6 +6,7 @@ import (
 
 	"github.com/llparse/kube-crd-skel/pkg/apis/ranchervm/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -125,6 +126,16 @@ func makeVMPod(vm *v1alpha1.VirtualMachine, publicKeys []*v1alpha1.Credential, i
 			makeEnvVar("CPUS", cpu, nil),
 			makeEnvVar("MAC", vm.Status.MAC, nil),
 			makeEnvVar("INSTANCE_ID", vm.Status.ID, nil),
+		},
+		Resources: corev1.ResourceRequirements{
+			Limits: map[corev1.ResourceName]resource.Quantity{
+				// CPU, in cores. (500m = .5 cores)
+				corev1.ResourceCPU: *resource.NewQuantity(int64(vm.Spec.Cpus), resource.BinarySI),
+				// Memory, in bytes. (500Gi = 500GiB = 500 * 1024 * 1024 * 1024)
+				corev1.ResourceMemory: *resource.NewQuantity(int64(vm.Spec.MemoryMB)*1024*1024, resource.BinarySI),
+				// Volume size, in bytes (e,g. 5Gi = 5GiB = 5 * 1024 * 1024 * 1024)
+				// corev1.ResourceStorage: *resource.NewQuantity(8*1024*1024*1024, resource.BinarySI),
+			},
 		},
 		VolumeMounts: []corev1.VolumeMount{
 			makeVolumeMount("vm-image", "/image", "", false),
