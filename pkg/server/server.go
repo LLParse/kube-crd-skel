@@ -67,9 +67,11 @@ func (s *server) newRouter() *mux.Router {
 	r.Methods("POST").Path("/v1/instances").Handler(http.HandlerFunc(s.InstanceCreate))
 	r.Methods("DELETE").Path("/v1/instances/{ns}/{name}").Handler(http.HandlerFunc(s.InstanceDelete))
 	r.Methods("POST").Path("/v1/instances/{ns}/{name}/{action}").Handler(http.HandlerFunc(s.InstanceAction))
+
 	r.Methods("GET").Path("/v1/host").Handler(http.HandlerFunc(s.NodeList))
 
 	r.Methods("GET").Path("/v1/credential").Handler(http.HandlerFunc(s.CredentialList))
+	r.Methods("POST").Path("/v1/credential").Handler(http.HandlerFunc(s.CredentialCreate))
 	r.Methods("DELETE").Path("/v1/credential/{name}").Handler(http.HandlerFunc(s.CredentialDelete))
 	return r
 }
