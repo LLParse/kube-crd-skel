@@ -23,6 +23,8 @@ import (
 	vmlisters "github.com/llparse/kube-crd-skel/pkg/client/listers/virtualmachine/v1alpha1"
 )
 
+const FinalizerDeletion = "deletion.vm.rancher.com"
+
 type VirtualMachineController struct {
 	vmClient   vmclientset.Interface
 	kubeClient kubernetes.Interface
@@ -221,7 +223,7 @@ func (ctrl *VirtualMachineController) updateNovncService(vm *vmapi.VirtualMachin
 }
 
 func (ctrl *VirtualMachineController) updateVMStatus(current *vmapi.VirtualMachine, updated *vmapi.VirtualMachine) (err error) {
-	if !reflect.DeepEqual(current.Status, updated.Status) {
+	if !reflect.DeepEqual(current.Status, updated.Status) || !reflect.DeepEqual(current.Finalizers, updated.Finalizers) {
 		updated, err = ctrl.vmClient.VirtualmachineV1alpha1().VirtualMachines(updated.Namespace).Update(updated)
 	}
 	return
@@ -271,10 +273,11 @@ func (ctrl *VirtualMachineController) stopVM(vm *vmapi.VirtualMachine) (err erro
 }
 
 func (ctrl *VirtualMachineController) updateVM(vm *vmapi.VirtualMachine) {
-	// set the instance id and mac address if not present
-	if vm.Status.ID == "" || vm.Status.MAC == "" {
+	// set the instance id, mac address, finalizer if not present
+	if vm.Status.ID == "" || vm.Status.MAC == "" || len(vm.Finalizers) == 0 {
 		vm2 := vm.DeepCopy()
 		uid := string(vm.UID)
+		vm2.Finalizers = append(vm2.Finalizers, FinalizerDeletion)
 		vm2.Status.ID = fmt.Sprintf("i-%s", uid[:8])
 		vm2.Status.MAC = fmt.Sprintf("06:fe:%s:%s:%s:%s", uid[:2], uid[2:4], uid[4:6], uid[6:8])
 		ctrl.updateVMStatus(vm, vm2)
@@ -305,20 +308,33 @@ func (ctrl *VirtualMachineController) deleteNovncPod(ns, name string) error {
 	return ctrl.kubeClient.CoreV1().Pods(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
 }
 
-func (ctrl *VirtualMachineController) deleteVM(ns, name string) {
-	ctrl.deleteVmPod(ns, name)
-	ctrl.deleteNovncPod(ns, name)
-
+func (ctrl *VirtualMachineController) deleteNovncService(ns, name string) error {
 	glog.V(2).Infof("trying to delete novnc service %s/%s", ns, name)
-	err := ctrl.kubeClient.CoreV1().Services(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
-		glog.V(2).Infof("error deleting novnc service %s/%s: %v", ns, name, err)
-	}
+	return ctrl.kubeClient.CoreV1().Services(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
+}
+
+func (ctrl *VirtualMachineController) deleteVM(vm *vmapi.VirtualMachine) {
+	err1 := ctrl.deleteVmPod(vm.Namespace, vm.Name)
+	err2 := ctrl.deleteNovncPod(vm.Namespace, vm.Name)
+	err3 := ctrl.deleteNovncService(vm.Namespace, vm.Name)
 
 	// TODO delete host path
 
-	// TODO suppress podInformer from receiving delete event and subsequently
-	// requeueing the VM
+	// Once dependent resources are all gone, remove finalizer and delete VM
+	if apierrors.IsNotFound(err1) &&
+		apierrors.IsNotFound(err2) &&
+		apierrors.IsNotFound(err3) {
+
+		vm2 := vm.DeepCopy()
+		vm2.Finalizers = []string{}
+		if err := ctrl.updateVMStatus(vm, vm2); err == nil {
+			err = ctrl.vmClient.VirtualmachineV1alpha1().VirtualMachines(vm2.Namespace).Delete(vm2.Name, &metav1.DeleteOptions{})
+			// } else {
+			// 	glog.V(5).Infof("requeued %q for sync", keyObj)
+			// 	ctrl.vmQueue.Add(keyObj)
+			// 	// requeue
+		}
+	}
 }
 
 func (ctrl *VirtualMachineController) vmWorker() {
@@ -337,20 +353,21 @@ func (ctrl *VirtualMachineController) vmWorker() {
 			return false
 		}
 		vm, err := ctrl.vmLister.VirtualMachines(ns).Get(name)
-		if err == nil {
-			// The vm still exists in informer cache, the event must have been
-			// add/update/sync
-			ctrl.updateVM(vm)
-			return false
-		}
-		if !apierrors.IsNotFound(err) {
+		switch {
+		case err == nil:
+			switch vm.DeletionTimestamp {
+			case nil:
+				ctrl.updateVM(vm)
+			default:
+				ctrl.deleteVM(vm)
+			}
+		case apierrors.IsNotFound(err):
+			break
+		default:
 			glog.V(2).Infof("error getting vm %q from informer: %v", key, err)
-			return false
+			ctrl.vmQueue.Add(keyObj)
+			glog.V(5).Infof("re-enqueued %q for sync", keyObj)
 		}
-
-		// The vm is not in informer cache, the event must have been
-		// delete
-		ctrl.deleteVM(ns, name)
 		return false
 	}
 	for {
