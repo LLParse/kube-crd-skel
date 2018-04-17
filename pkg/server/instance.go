@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/golang/glog"
 	"github.com/gorilla/mux"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,13 +41,14 @@ func (s *server) InstanceList(w http.ResponseWriter, r *http.Request) {
 }
 
 type InstanceCreate struct {
-	Namespace  string   `json:"namespace"`
-	Name       string   `json:"name"`
-	Cpus       int32    `json:"cpus"`
-	Memory     int32    `json:"memory"`
-	Image      string   `json:"image"`
-	Action     string   `json:"action"`
-	PublicKeys []string `json:"pubkey"`
+	Namespace   string   `json:"namespace"`
+	Name        string   `json:"name"`
+	Cpus        int32    `json:"cpus"`
+	Memory      int32    `json:"memory"`
+	Image       string   `json:"image"`
+	Action      string   `json:"action"`
+	PublicKeys  []string `json:"pubkey"`
+	HostedNovnc bool     `json:"novnc"`
 }
 
 func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +63,8 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 			len(r.PostForm["mem"]) != 1 ||
 			len(r.PostForm["image"]) != 1 ||
 			len(r.PostForm["pubkey"]) < 1 ||
-			len(r.PostForm["action"]) != 1 {
+			len(r.PostForm["action"]) != 1 ||
+			len(r.PostForm["novnc"]) != 1 {
 
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -70,13 +73,14 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 		cpus, _ := strconv.Atoi(r.PostForm["cpus"][0])
 		mem, _ := strconv.Atoi(r.PostForm["mem"][0])
 		ic = InstanceCreate{
-			Namespace:  r.PostForm["ns"][0],
-			Name:       r.PostForm["name"][0],
-			Cpus:       int32(cpus),
-			Memory:     int32(mem),
-			Image:      r.PostForm["image"][0],
-			Action:     r.PostForm["action"][0],
-			PublicKeys: r.PostForm["pubkey"],
+			Namespace:   r.PostForm["ns"][0],
+			Name:        r.PostForm["name"][0],
+			Cpus:        int32(cpus),
+			Memory:      int32(mem),
+			Image:       r.PostForm["image"][0],
+			Action:      r.PostForm["action"][0],
+			PublicKeys:  r.PostForm["pubkey"],
+			HostedNovnc: (r.PostForm["novnc"][0] == "true"),
 		}
 	case strings.HasPrefix(r.Header.Get("Content-Type"), "application/json"):
 		defer r.Body.Close()
@@ -117,10 +121,12 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 			MachineImage: vmapi.MachineImageType(ic.Image),
 			Action:       vmapi.ActionType(ic.Action),
 			PublicKeys:   ic.PublicKeys,
+			HostedNovnc:  ic.HostedNovnc,
 		},
 	}
 
 	vm, err := s.vmClient.VirtualmachineV1alpha1().VirtualMachines(ic.Namespace).Create(vm)
+	glog.Infof("%+v", err)
 	switch {
 	case err == nil:
 		w.WriteHeader(http.StatusCreated)

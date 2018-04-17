@@ -42,6 +42,7 @@ type VirtualMachineSpec struct {
 	MachineImage MachineImageType `json:"image"`
 	Action       ActionType       `json:"action"`
 	PublicKeys   []string         `json:"public_keys"`
+	HostedNovnc  bool             `json:"hosted_novnc"`
 	Disks        VDisk            `json:"disks"`
 }
 
