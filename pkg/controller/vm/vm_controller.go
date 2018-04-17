@@ -41,7 +41,8 @@ type VirtualMachineController struct {
 	vmQueue  workqueue.RateLimitingInterface
 	podQueue workqueue.RateLimitingInterface
 
-	bridgeIface string
+	bridgeIface      string
+	noResourceLimits bool
 }
 
 func init() {
@@ -56,14 +57,16 @@ func NewVirtualMachineController(
 	svcInformer coreinformers.ServiceInformer,
 	credInformer vminformers.CredentialInformer,
 	bridgeIface string,
+	noResourceLimits bool,
 ) *VirtualMachineController {
 
 	ctrl := &VirtualMachineController{
-		vmClient:    vmClient,
-		kubeClient:  kubeClient,
-		vmQueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "virtualmachine"),
-		podQueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod"),
-		bridgeIface: bridgeIface,
+		vmClient:         vmClient,
+		kubeClient:       kubeClient,
+		vmQueue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "virtualmachine"),
+		podQueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod"),
+		bridgeIface:      bridgeIface,
+		noResourceLimits: noResourceLimits,
 	}
 
 	vmInformer.Informer().AddEventHandler(
@@ -167,7 +170,7 @@ func (ctrl *VirtualMachineController) updateVmPod(vm *vmapi.VirtualMachine) (err
 			publicKeys = append(publicKeys, publicKey)
 		}
 
-		_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeVMPod(vm, publicKeys, ctrl.bridgeIface))
+		_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeVMPod(vm, publicKeys, ctrl.bridgeIface, ctrl.noResourceLimits))
 		if err != nil {
 			glog.V(2).Infof("Error creating vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
 			return
@@ -314,6 +317,15 @@ func (ctrl *VirtualMachineController) deleteNovncService(ns, name string) error 
 }
 
 func (ctrl *VirtualMachineController) deleteVM(vm *vmapi.VirtualMachine) {
+
+	// update status to terminating, if necessary
+	if vm.Status.State != vmapi.StateTerminating {
+		vm2 := vm.DeepCopy()
+		vm2.Status.State = vmapi.StateTerminating
+		ctrl.updateVMStatus(vm, vm2)
+		vm = vm2
+	}
+
 	err1 := ctrl.deleteVmPod(vm.Namespace, vm.Name)
 	err2 := ctrl.deleteNovncPod(vm.Namespace, vm.Name)
 	err3 := ctrl.deleteNovncService(vm.Namespace, vm.Name)

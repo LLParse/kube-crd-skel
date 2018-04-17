@@ -31,6 +31,7 @@ func main() {
 	// vm-controller flags
 	vmCtrl := flag.Bool("vm", false, "Run the VM controller")
 	bridgeIface := flag.String("bridge-iface", "ens33", "Target network interface to bridge VM network to")
+	noResourceLimits := flag.Bool("no-resource-limits", false, "Disable resource limits (proceed at your own risk)")
 
 	// ip-controller flags
 	ipCtrl := flag.Bool("ip", false, "Run the IP controller")
@@ -75,6 +76,7 @@ func main() {
 			kubeInformerFactory.Core().V1().Services(),
 			vmInformerFactory.Virtualmachine().V1alpha1().Credentials(),
 			*bridgeIface,
+			*noResourceLimits,
 		).Run(*workers, stopCh)
 	}
 
