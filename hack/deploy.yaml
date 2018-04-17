@@ -10,6 +10,7 @@ spec:
       labels:
         app: vm-controller
     spec:
+      hostNetwork: true
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -22,6 +23,7 @@ spec:
       containers:
       - name: vm-controller
         image: docker.io/llparse/ranchervm-controller:dev
+        imagePullPolicy: Always
         args:
         - -vm
 ---
@@ -37,6 +39,7 @@ spec:
       labels:
         app: rest-server
     spec:
+      hostNetwork: true
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -49,6 +52,7 @@ spec:
       containers:
       - name: rest-server
         image: docker.io/llparse/ranchervm-controller:dev
+        imagePullPolicy: Always
         args:
         - -server
 ---
@@ -63,6 +67,48 @@ spec:
   selector:
     app: rest-server
   # TODO should be ClusterIP (internal only), exposed for development
+  type: NodePort
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: ranchervm-ui
+  namespace: default
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: ranchervm-ui
+    spec:
+      hostNetwork: true
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values: ["ranchervm-ui"]
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: ranchervm-ui
+        image: docker.io/llparse/ranchervm-ui:latest
+        imagePullPolicy: Always
+        env:
+        - name: LONGHORN_MANAGER_IP
+          value: "http://127.0.0.1:9500/v1/"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ranchervm-ui
+spec:
+  ports:
+  - name: ui
+    port: 8000
+  selector:
+    app: ranchervm-ui
   type: NodePort
 ---
 apiVersion: apps/v1beta2
@@ -82,6 +128,7 @@ spec:
       containers:
       - name: ip-controller
         image: docker.io/llparse/ranchervm-controller:dev
+        imagePullPolicy: Always
         command: [ "sh", "-c"]
         args:
         - exec /vm-controller -ip -nodename ${MY_NODE_NAME} -v 3
@@ -92,6 +139,7 @@ spec:
               fieldPath: spec.nodeName
       - name: arp-scanner
         image: docker.io/llparse/ranchervm-controller:dev
+        imagePullPolicy: Always
         command: [ "bash", "-c"]
         args:
         - while true; do

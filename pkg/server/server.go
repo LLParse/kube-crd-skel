@@ -25,6 +25,8 @@ type server struct {
 	nodeListerSynced cache.InformerSynced
 	credLister       vmlisters.CredentialLister
 	credListerSynced cache.InformerSynced
+
+	listenAddress string
 }
 
 func NewServer(
@@ -33,6 +35,7 @@ func NewServer(
 	vmInformer vminformers.VirtualMachineInformer,
 	nodeInformer coreinformers.NodeInformer,
 	credInformer vminformers.CredentialInformer,
+	listenAddress string,
 ) *server {
 
 	return &server{
@@ -45,6 +48,8 @@ func NewServer(
 		nodeListerSynced: nodeInformer.Informer().HasSynced,
 		credLister:       credInformer.Lister(),
 		credListerSynced: credInformer.Informer().HasSynced,
+
+		listenAddress: listenAddress,
 	}
 }
 
@@ -54,8 +59,8 @@ func (s *server) Run(stopCh <-chan struct{}) {
 	}
 
 	r := s.newRouter()
-	glog.Info("Starting http server listening on :9500")
-	go http.ListenAndServe(":9500", r)
+	glog.Infof("Starting http server listening on %s", s.listenAddress)
+	go http.ListenAndServe(s.listenAddress, r)
 
 	<-stopCh
 }

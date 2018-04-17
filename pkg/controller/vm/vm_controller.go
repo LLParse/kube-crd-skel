@@ -23,8 +23,6 @@ import (
 	vmlisters "github.com/llparse/kube-crd-skel/pkg/client/listers/virtualmachine/v1alpha1"
 )
 
-var IFACE = "ens33"
-
 type VirtualMachineController struct {
 	vmClient   vmclientset.Interface
 	kubeClient kubernetes.Interface
@@ -40,6 +38,8 @@ type VirtualMachineController struct {
 
 	vmQueue  workqueue.RateLimitingInterface
 	podQueue workqueue.RateLimitingInterface
+
+	bridgeIface string
 }
 
 func init() {
@@ -53,13 +53,15 @@ func NewVirtualMachineController(
 	podInformer coreinformers.PodInformer,
 	svcInformer coreinformers.ServiceInformer,
 	credInformer vminformers.CredentialInformer,
+	bridgeIface string,
 ) *VirtualMachineController {
 
 	ctrl := &VirtualMachineController{
-		vmClient:   vmClient,
-		kubeClient: kubeClient,
-		vmQueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "virtualmachine"),
-		podQueue:   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod"),
+		vmClient:    vmClient,
+		kubeClient:  kubeClient,
+		vmQueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "virtualmachine"),
+		podQueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod"),
+		bridgeIface: bridgeIface,
 	}
 
 	vmInformer.Informer().AddEventHandler(
@@ -163,7 +165,7 @@ func (ctrl *VirtualMachineController) updateVmPod(vm *vmapi.VirtualMachine) (err
 			publicKeys = append(publicKeys, publicKey)
 		}
 
-		_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeVMPod(vm, publicKeys, IFACE))
+		_, err = ctrl.kubeClient.CoreV1().Pods(vm.Namespace).Create(makeVMPod(vm, publicKeys, ctrl.bridgeIface))
 		if err != nil {
 			glog.V(2).Infof("Error creating vm pod %s/%s: %v", vm.Namespace, vm.Name, err)
 			return
@@ -312,6 +314,8 @@ func (ctrl *VirtualMachineController) deleteVM(ns, name string) {
 	if err != nil && !apierrors.IsNotFound(err) {
 		glog.V(2).Infof("error deleting novnc service %s/%s: %v", ns, name, err)
 	}
+
+	// TODO delete host path
 
 	// TODO suppress podInformer from receiving delete event and subsequently
 	// requeueing the VM

@@ -23,14 +23,23 @@ import (
 )
 
 func main() {
+	// common flags
+	kubeconfig := flag.String("kubeconfig", "", "Path to a kube config; only required if out-of-cluster.")
+	workers := flag.Int("workers", 5, "Concurrent resource syncs")
+	flag.Set("logtostderr", "true")
+
+	// vm-controller flags
 	vmCtrl := flag.Bool("vm", false, "Run the VM controller")
+	bridgeIface := flag.String("bridge-iface", "ens33", "Target network interface to bridge VM network to")
+
+	// ip-controller flags
 	ipCtrl := flag.Bool("ip", false, "Run the IP controller")
 	nodeName := flag.String("nodename", "", "Name of the node running the controller pod")
-	serv := flag.Bool("server", false, "Run the rest server")
 
-	kubeconfig := flag.String("kubeconfig", "", "Path to a kube config; only required if out-of-cluster.")
-	workers := flag.Int("workers", 5, "Concurrent VM syncs")
-	flag.Set("logtostderr", "true")
+	// rest-server flags
+	serv := flag.Bool("server", false, "Run the REST server")
+	listenAddress := flag.String("listen-address", ":9500", "TCP network address that the REST server will listen on")
+
 	flag.Parse()
 
 	config, err := NewKubeClientConfig(*kubeconfig)
@@ -65,6 +74,7 @@ func main() {
 			kubeInformerFactory.Core().V1().Pods(),
 			kubeInformerFactory.Core().V1().Services(),
 			vmInformerFactory.Virtualmachine().V1alpha1().Credentials(),
+			*bridgeIface,
 		).Run(*workers, stopCh)
 	}
 
@@ -85,6 +95,7 @@ func main() {
 			vmInformerFactory.Virtualmachine().V1alpha1().VirtualMachines(),
 			kubeInformerFactory.Core().V1().Nodes(),
 			vmInformerFactory.Virtualmachine().V1alpha1().Credentials(),
+			*listenAddress,
 		).Run(stopCh)
 	}
 

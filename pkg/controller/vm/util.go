@@ -77,7 +77,7 @@ func makeVolumeMount(name, mountPath, subPath string, readOnly bool) corev1.Volu
 	}
 }
 
-const HostStateBaseDir = "/tmp/rancher"
+const HostStateBaseDir = "/var/lib/rancher"
 
 func makeHostStateVol(vmNamespace, vmName, volName string) corev1.Volume {
 	return corev1.Volume{
@@ -115,9 +115,10 @@ func makeVMPod(vm *v1alpha1.VirtualMachine, publicKeys []*v1alpha1.Credential, i
 	}
 
 	vmContainer := corev1.Container{
-		Name:    "vm",
-		Image:   fmt.Sprintf("llparse/vm-%s", string(vm.Spec.MachineImage)),
-		Command: []string{"/usr/bin/startvm"},
+		Name:            "vm",
+		Image:           fmt.Sprintf("llparse/vm-%s", string(vm.Spec.MachineImage)),
+		ImagePullPolicy: corev1.PullAlways,
+		Command:         []string{"/usr/bin/startvm"},
 		Env: []corev1.EnvVar{
 			makeEnvVarFieldPath("MY_POD_NAME", "metadata.name"),
 			makeEnvVarFieldPath("MY_POD_NAMESPACE", "metadata.namespace"),
@@ -193,8 +194,9 @@ func makeVMPod(vm *v1alpha1.VirtualMachine, publicKeys []*v1alpha1.Credential, i
 			},
 			InitContainers: []corev1.Container{
 				corev1.Container{
-					Name:  "debootstrap",
-					Image: "llparse/vm-tools:0.0.1",
+					Name:            "debootstrap",
+					Image:           "llparse/vm-tools:0.0.1",
+					ImagePullPolicy: corev1.PullAlways,
 					VolumeMounts: []corev1.VolumeMount{
 						makeVolumeMount("vm-fs", "/vm-tools", "", false),
 					},
