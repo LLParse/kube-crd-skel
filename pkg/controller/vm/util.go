@@ -190,8 +190,8 @@ func makeVMPod(vm *v1alpha1.VirtualMachine, publicKeys []*v1alpha1.Credential, i
 		},
 		Spec: corev1.PodSpec{
 			Volumes: []corev1.Volume{
-				makeHostStateVol(vm.Name, vm.Namespace, "vm-fs"),
-				makeHostStateVol(vm.Name, vm.Namespace, "vm-image"),
+				makeHostStateVol(vm.Name, NamespaceVM, "vm-fs"),
+				makeHostStateVol(vm.Name, NamespaceVM, "vm-image"),
 				makeVolHostPath("vm-socket", "/tmp/rancher/vm-socks"),
 				makeVolHostPath("dev-kvm", "/dev/kvm"),
 			},

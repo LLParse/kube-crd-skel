@@ -90,36 +90,29 @@ func periodically(t time.Duration, f func()) {
 }
 
 func (ctrl *IPDiscoveryController) updateVMs(arpTable *vmapi.ARPTable, nodeName string) error {
-	namespaces, err := ctrl.nsLister.List(labels.Everything())
+	vms, err := ctrl.vmLister.List(labels.Everything())
 	if err != nil {
 		return err
 	}
 
-	for _, ns := range namespaces {
-		vms, err := ctrl.vmLister.VirtualMachines(ns.Name).List(labels.Everything())
-		if err != nil {
-			return err
+	arpMap := arpTable.Spec.Table
+	for _, vm := range vms {
+		// ip resolution requires a mac address
+		if vm.Status.MAC == "" {
+			continue
 		}
 
-		arpMap := arpTable.Spec.Table
-		for _, vm := range vms {
-			// ip resolution requires a mac address
-			if vm.Status.MAC == "" {
-				continue
+		if vm.Status.IP == "" {
+			if entry, ok := arpMap[vm.Status.MAC]; ok {
+				vm2 := vm.DeepCopy()
+				vm2.Status.IP = entry.IP
+				ctrl.updateVMStatus(vm, vm2)
 			}
-
-			if vm.Status.IP == "" {
-				if entry, ok := arpMap[vm.Status.MAC]; ok {
-					vm2 := vm.DeepCopy()
-					vm2.Status.IP = entry.IP
-					ctrl.updateVMStatus(vm, vm2)
-				}
-			} else {
-				if entry, ok := arpMap[vm.Status.MAC]; ok && entry.IP != vm.Status.IP {
-					vm2 := vm.DeepCopy()
-					vm2.Status.IP = entry.IP
-					ctrl.updateVMStatus(vm, vm2)
-				}
+		} else {
+			if entry, ok := arpMap[vm.Status.MAC]; ok && entry.IP != vm.Status.IP {
+				vm2 := vm.DeepCopy()
+				vm2.Status.IP = entry.IP
+				ctrl.updateVMStatus(vm, vm2)
 			}
 		}
 	}
@@ -129,7 +122,7 @@ func (ctrl *IPDiscoveryController) updateVMs(arpTable *vmapi.ARPTable, nodeName 
 
 func (ctrl *IPDiscoveryController) updateVMStatus(current *vmapi.VirtualMachine, updated *vmapi.VirtualMachine) (err error) {
 	if !reflect.DeepEqual(current.Status, updated.Status) {
-		updated, err = ctrl.crdClient.VirtualmachineV1alpha1().VirtualMachines(updated.Namespace).Update(updated)
+		updated, err = ctrl.crdClient.VirtualmachineV1alpha1().VirtualMachines().Update(updated)
 		glog.V(3).Infof("Updated vm %s", updated.Name)
 	}
 	return

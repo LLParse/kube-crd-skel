@@ -42,8 +42,8 @@ func (c *VirtualmachineV1alpha1Client) Credentials() CredentialInterface {
 	return newCredentials(c)
 }
 
-func (c *VirtualmachineV1alpha1Client) VirtualMachines(namespace string) VirtualMachineInterface {
-	return newVirtualMachines(c, namespace)
+func (c *VirtualmachineV1alpha1Client) VirtualMachines() VirtualMachineInterface {
+	return newVirtualMachines(c)
 }
 
 // NewForConfig creates a new VirtualmachineV1alpha1Client for the given config.

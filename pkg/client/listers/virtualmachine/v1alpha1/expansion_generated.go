@@ -29,7 +29,3 @@ type CredentialListerExpansion interface{}
 // VirtualMachineListerExpansion allows custom methods to be added to
 // VirtualMachineLister.
 type VirtualMachineListerExpansion interface{}
-
-// VirtualMachineNamespaceListerExpansion allows custom methods to be added to
-// VirtualMachineNamespaceLister.
-type VirtualMachineNamespaceListerExpansion interface{}

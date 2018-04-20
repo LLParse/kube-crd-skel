@@ -44,14 +44,14 @@ type virtualMachineInformer struct {
 // NewVirtualMachineInformer constructs a new informer for VirtualMachine type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewVirtualMachineInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+func NewVirtualMachineInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
-				return client.VirtualmachineV1alpha1().VirtualMachines(namespace).List(options)
+				return client.VirtualmachineV1alpha1().VirtualMachines().List(options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
-				return client.VirtualmachineV1alpha1().VirtualMachines(namespace).Watch(options)
+				return client.VirtualmachineV1alpha1().VirtualMachines().Watch(options)
 			},
 		},
 		&ranchervm_v1alpha1.VirtualMachine{},
@@ -61,7 +61,7 @@ func NewVirtualMachineInformer(client versioned.Interface, namespace string, res
 }
 
 func defaultVirtualMachineInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewVirtualMachineInformer(client, v1.NamespaceAll, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	return NewVirtualMachineInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 }
 
 func (f *virtualMachineInformer) Informer() cache.SharedIndexInformer {

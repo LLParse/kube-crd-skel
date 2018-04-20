@@ -41,7 +41,6 @@ func (s *server) InstanceList(w http.ResponseWriter, r *http.Request) {
 }
 
 type InstanceCreate struct {
-	Namespace   string   `json:"namespace"`
 	Name        string   `json:"name"`
 	Cpus        int32    `json:"cpus"`
 	Memory      int32    `json:"memory"`
@@ -57,8 +56,7 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded"):
 		r.ParseForm()
 
-		if len(r.PostForm["ns"]) != 1 ||
-			len(r.PostForm["name"]) != 1 ||
+		if len(r.PostForm["name"]) != 1 ||
 			len(r.PostForm["cpus"]) != 1 ||
 			len(r.PostForm["mem"]) != 1 ||
 			len(r.PostForm["image"]) != 1 ||
@@ -73,7 +71,6 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 		cpus, _ := strconv.Atoi(r.PostForm["cpus"][0])
 		mem, _ := strconv.Atoi(r.PostForm["mem"][0])
 		ic = InstanceCreate{
-			Namespace:   r.PostForm["ns"][0],
 			Name:        r.PostForm["name"][0],
 			Cpus:        int32(cpus),
 			Memory:      int32(mem),
@@ -99,8 +96,7 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !isValidNamespace(ic.Namespace) ||
-		!isValidName(ic.Name) ||
+	if !isValidName(ic.Name) ||
 		!isValidCpus(ic.Cpus) ||
 		!isValidMemory(ic.Memory) ||
 		!isValidImage(ic.Image) ||
@@ -125,7 +121,7 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	vm, err := s.vmClient.VirtualmachineV1alpha1().VirtualMachines(ic.Namespace).Create(vm)
+	vm, err := s.vmClient.VirtualmachineV1alpha1().VirtualMachines().Create(vm)
 	glog.Infof("%+v", err)
 	switch {
 	case err == nil:
@@ -138,15 +134,14 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) InstanceDelete(w http.ResponseWriter, r *http.Request) {
-	ns := mux.Vars(r)["ns"]
 	name := mux.Vars(r)["name"]
 
-	if !isValidNamespace(ns) || !isValidName(name) {
+	if !isValidName(name) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	err := s.vmClient.VirtualmachineV1alpha1().VirtualMachines(ns).Delete(name, &metav1.DeleteOptions{})
+	err := s.vmClient.VirtualmachineV1alpha1().VirtualMachines().Delete(name, &metav1.DeleteOptions{})
 	switch {
 	case err == nil:
 		w.WriteHeader(http.StatusNoContent)
@@ -159,17 +154,16 @@ func (s *server) InstanceDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) InstanceAction(w http.ResponseWriter, r *http.Request) {
-	ns := mux.Vars(r)["ns"]
 	name := mux.Vars(r)["name"]
 	action := mux.Vars(r)["action"]
 	actionType := vmapi.ActionType(action)
 
-	if !nsRegexp.MatchString(ns) || !nameRegexp.MatchString(name) || !isValidAction(actionType) {
+	if !nameRegexp.MatchString(name) || !isValidAction(actionType) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	vm, err := s.vmLister.VirtualMachines(ns).Get(name)
+	vm, err := s.vmLister.Get(name)
 	switch {
 	case err == nil:
 		break
@@ -189,7 +183,7 @@ func (s *server) InstanceAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vm2, err = s.vmClient.VirtualmachineV1alpha1().VirtualMachines(ns).Update(vm2)
+	vm2, err = s.vmClient.VirtualmachineV1alpha1().VirtualMachines().Update(vm2)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {

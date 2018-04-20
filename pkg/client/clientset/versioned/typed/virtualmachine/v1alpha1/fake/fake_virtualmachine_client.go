@@ -33,8 +33,8 @@ func (c *FakeVirtualmachineV1alpha1) Credentials() v1alpha1.CredentialInterface 
 	return &FakeCredentials{c}
 }
 
-func (c *FakeVirtualmachineV1alpha1) VirtualMachines(namespace string) v1alpha1.VirtualMachineInterface {
-	return &FakeVirtualMachines{c, namespace}
+func (c *FakeVirtualmachineV1alpha1) VirtualMachines() v1alpha1.VirtualMachineInterface {
+	return &FakeVirtualMachines{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

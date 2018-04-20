@@ -35,7 +35,7 @@ func createVirtualMachineDefinition() *apiextensionsv1beta1.CustomResourceDefini
 				Kind:       "VirtualMachine",
 				ShortNames: []string{"vm", "vms"},
 			},
-			Scope: apiextensionsv1beta1.NamespaceScoped,
+			Scope: apiextensionsv1beta1.ClusterScoped,
 			Validation: &apiextensionsv1beta1.CustomResourceValidation{
 				OpenAPIV3Schema: &apiextensionsv1beta1.JSONSchemaProps{
 					Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
