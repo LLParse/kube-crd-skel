@@ -81,18 +81,10 @@ func (ctrl *VirtualMachineController) updateNovncService(vm *vmapi.VirtualMachin
 
 func (ctrl *VirtualMachineController) deleteNovncPod(ns, name string) error {
 	glog.V(2).Infof("trying to delete novnc pod %s/%s", ns, name)
-	err := ctrl.kubeClient.CoreV1().Pods(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
-	if apierrors.IsNotFound(err) {
-		err = nil
-	}
-	return err
+	return ctrl.kubeClient.CoreV1().Pods(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
 }
 
 func (ctrl *VirtualMachineController) deleteNovncService(ns, name string) error {
 	glog.V(2).Infof("trying to delete novnc service %s/%s", ns, name)
-	err := ctrl.kubeClient.CoreV1().Services(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
-	if apierrors.IsNotFound(err) {
-		err = nil
-	}
-	return err
+	return ctrl.kubeClient.CoreV1().Services(ns).Delete(name+"-novnc", &metav1.DeleteOptions{})
 }

@@ -222,7 +222,6 @@ func (ctrl *VirtualMachineController) stopVM(vm *vmapi.VirtualMachine) (err erro
 	default:
 		vm2.Status.State = vmapi.StateError
 	}
-
 	err = ctrl.updateVMStatus(vm, vm2)
 	return
 }
