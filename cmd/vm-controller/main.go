@@ -47,6 +47,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	config.QPS = 50
+	config.Burst = 100
 
 	apiextensionsclientset := apiextensionsclient.NewForConfigOrDie(config)
 	if err := ranchervm.CreateVirtualMachineDefinition(apiextensionsclientset); err != nil {

@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -48,6 +49,7 @@ type InstanceCreate struct {
 	Action      string   `json:"action"`
 	PublicKeys  []string `json:"pubkey"`
 	HostedNovnc bool     `json:"novnc"`
+	Instances   int32    `json:"instances"`
 }
 
 func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +64,8 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 			len(r.PostForm["image"]) != 1 ||
 			len(r.PostForm["pubkey"]) < 1 ||
 			len(r.PostForm["action"]) != 1 ||
-			len(r.PostForm["novnc"]) != 1 {
+			len(r.PostForm["novnc"]) != 1 ||
+			len(r.PostForm["instances"]) != 1 {
 
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -70,6 +73,7 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 
 		cpus, _ := strconv.Atoi(r.PostForm["cpus"][0])
 		mem, _ := strconv.Atoi(r.PostForm["mem"][0])
+		instances, _ := strconv.Atoi(r.PostForm["instances"][0])
 		ic = InstanceCreate{
 			Name:        r.PostForm["name"][0],
 			Cpus:        int32(cpus),
@@ -78,6 +82,7 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 			Action:      r.PostForm["action"][0],
 			PublicKeys:  r.PostForm["pubkey"],
 			HostedNovnc: (r.PostForm["novnc"][0] == "true"),
+			Instances:   int32(instances),
 		}
 	case strings.HasPrefix(r.Header.Get("Content-Type"), "application/json"):
 		defer r.Body.Close()
@@ -88,11 +93,12 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 		}
 		err = json.Unmarshal(body, &ic)
 		if err != nil {
+			glog.V(3).Infof("error unmarshaling json: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 	default:
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusUnsupportedMediaType)
 		return
 	}
 
@@ -101,12 +107,21 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 		!isValidMemory(ic.Memory) ||
 		!isValidImage(ic.Image) ||
 		!isValidAction(vmapi.ActionType(ic.Action)) ||
-		!isValidPublicKeys(ic.PublicKeys) {
+		!isValidPublicKeys(ic.PublicKeys) ||
+		!isValidInstanceCount(ic.Instances) {
 
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
+	if ic.Instances == 1 {
+		s.instanceCreateOne(w, r, &ic)
+	} else {
+		s.instanceCreateMany(w, r, &ic)
+	}
+}
+
+func (s *server) instanceCreateOne(w http.ResponseWriter, r *http.Request, ic *InstanceCreate) {
 	vm := &vmapi.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: ic.Name,
@@ -122,7 +137,6 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vm, err := s.vmClient.VirtualmachineV1alpha1().VirtualMachines().Create(vm)
-	glog.Infof("%+v", err)
 	switch {
 	case err == nil:
 		w.WriteHeader(http.StatusCreated)
@@ -131,6 +145,38 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}
+}
+
+func (s *server) instanceCreateMany(w http.ResponseWriter, r *http.Request, ic *InstanceCreate) {
+	for i := int32(1); i <= ic.Instances; i++ {
+		vm := &vmapi.VirtualMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("%s-%02d", ic.Name, i),
+			},
+			Spec: vmapi.VirtualMachineSpec{
+				Cpus:         ic.Cpus,
+				MemoryMB:     ic.Memory,
+				MachineImage: vmapi.MachineImageType(ic.Image),
+				Action:       vmapi.ActionType(ic.Action),
+				PublicKeys:   ic.PublicKeys,
+				HostedNovnc:  ic.HostedNovnc,
+			},
+		}
+
+		vm, err := s.vmClient.VirtualmachineV1alpha1().VirtualMachines().Create(vm)
+		switch {
+		case err == nil:
+			continue
+		case apierrors.IsAlreadyExists(err):
+			w.WriteHeader(http.StatusConflict)
+			return
+		default:
+			glog.V(3).Infof("error creating instance: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusCreated)
 }
 
 func (s *server) InstanceDelete(w http.ResponseWriter, r *http.Request) {

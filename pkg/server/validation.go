@@ -50,3 +50,7 @@ func isValidPublicKeys(publicKeys []string) bool {
 func isValidPublicKey(publicKey string) bool {
 	return publicKey != ""
 }
+
+func isValidInstanceCount(instanceCount int32) bool {
+	return instanceCount >= 1 && instanceCount <= 99
+}
