@@ -84,7 +84,7 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 			HostedNovnc: (r.PostForm["novnc"][0] == "true"),
 			Instances:   int32(instances),
 		}
-	case strings.HasPrefix(r.Header.Get("Content-Type"), "application/json"):
+	default:
 		defer r.Body.Close()
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -97,9 +97,6 @@ func (s *server) InstanceCreate(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-	default:
-		w.WriteHeader(http.StatusUnsupportedMediaType)
-		return
 	}
 
 	if !isValidName(ic.Name) ||
@@ -199,12 +196,74 @@ func (s *server) InstanceDelete(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type InstanceNames struct {
+	Names []string `json:"names"`
+}
+
+func parseInstanceNames(w http.ResponseWriter, r *http.Request) *InstanceNames {
+	var in InstanceNames
+	switch {
+	case strings.HasPrefix(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded"):
+		r.ParseForm()
+		if len(r.PostForm["names"]) == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			return nil
+		}
+		in = InstanceNames{
+			Names: r.PostForm["names"],
+		}
+
+	default:
+		defer r.Body.Close()
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return nil
+		}
+		err = json.Unmarshal(body, &in)
+		if err != nil {
+			glog.V(3).Infof("error unmarshaling json: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return nil
+		}
+	}
+	return &in
+}
+
+func (s *server) InstanceDeleteMulti(w http.ResponseWriter, r *http.Request) {
+	in := parseInstanceNames(w, r)
+	if in == nil {
+		return
+	}
+
+	if !isValidName(in.Names...) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	for _, name := range in.Names {
+		err := s.vmClient.VirtualmachineV1alpha1().VirtualMachines().Delete(name, &metav1.DeleteOptions{})
+		switch {
+		case err == nil:
+			continue
+		case apierrors.IsNotFound(err):
+			w.WriteHeader(http.StatusNotFound)
+			return
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *server) InstanceAction(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 	action := mux.Vars(r)["action"]
 	actionType := vmapi.ActionType(action)
 
-	if !nameRegexp.MatchString(name) || !isValidAction(actionType) {
+	if !isValidName(name) || !isValidAction(actionType) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -235,4 +294,46 @@ func (s *server) InstanceAction(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+func (s *server) InstanceActionMulti(w http.ResponseWriter, r *http.Request) {
+	action := mux.Vars(r)["action"]
+	actionType := vmapi.ActionType(action)
+	in := parseInstanceNames(w, r)
+	if in == nil {
+		return
+	}
+
+	if !isValidAction(actionType) || !isValidName(in.Names...) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	for _, name := range in.Names {
+		vm, err := s.vmLister.Get(name)
+		switch {
+		case err == nil:
+			break
+		case apierrors.IsNotFound(err):
+			w.WriteHeader(http.StatusNotFound)
+			return
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		vm2 := vm.DeepCopy()
+		vm2.Spec.Action = vmapi.ActionType(action)
+		if vm.Spec.Action == vm2.Spec.Action {
+			// In multi scenario we behave idempotently
+			continue
+		}
+
+		if vm2, err = s.vmClient.VirtualmachineV1alpha1().VirtualMachines().Update(vm2); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

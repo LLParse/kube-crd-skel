@@ -21,8 +21,12 @@ func isValidNamespace(namespace string) bool {
 	return nsRegexp.MatchString(namespace)
 }
 
-func isValidName(name string) bool {
-	return nameRegexp.MatchString(name)
+func isValidName(names ...string) bool {
+	valid := true
+	for _, name := range names {
+		valid = valid && nameRegexp.MatchString(name)
+	}
+	return valid
 }
 
 func isValidCpus(cpus int32) bool {
