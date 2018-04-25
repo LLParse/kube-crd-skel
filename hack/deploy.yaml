@@ -1,8 +1,70 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ranchervm-system
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  labels:
+    ranchervm-system: VirtualMachine
+  name: virtualmachines.vm.rancher.com
+spec:
+  group: vm.rancher.com
+  version: v1alpha1
+  names:
+    kind: VirtualMachine
+    listKind: VirtualMachineList
+    plural: virtualmachines
+    shortNames:
+    - vm
+    - vms
+    singular: virtualmachine
+  scope: Cluster
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  labels:
+    ranchervm-system: ARPTable
+  name: arptables.vm.rancher.com
+spec:
+  group: vm.rancher.com
+  version: v1alpha1
+  names:
+    kind: ARPTable
+    listKind: ARPTableList
+    plural: arptables
+    shortNames:
+    - arp
+    - arps
+    singular: arptable
+  scope: Cluster
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  labels:
+    ranchervm-system: Credential
+  name: credentials.vm.rancher.com
+spec:
+  group: vm.rancher.com
+  version: v1alpha1
+  names:
+    kind: Credential
+    listKind: CredentialList
+    plural: credentials
+    shortNames:
+    - cred
+    - creds
+    singular: credential
+  scope: Cluster
+---
 apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
   name: vm-controller
-  namespace: default
+  namespace: ranchervm-system
 spec:
   replicas: 1
   template:
@@ -22,7 +84,7 @@ spec:
             topologyKey: "kubernetes.io/hostname"
       containers:
       - name: vm-controller
-        image: docker.io/llparse/ranchervm-controller:dev
+        image: llparse/ranchervm-controller
         imagePullPolicy: Always
         args:
         - -vm
@@ -30,14 +92,14 @@ spec:
 apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
-  name: rest-server
-  namespace: default
+  name: ranchervm-backend
+  namespace: ranchervm-system
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: rest-server
+        app: ranchervm-backend
     spec:
       hostNetwork: true
       affinity:
@@ -47,39 +109,39 @@ spec:
               matchExpressions:
               - key: app
                 operator: In
-                values: ["rest-server"]
+                values: ["ranchervm-backend"]
             topologyKey: "kubernetes.io/hostname"
       containers:
-      - name: rest-server
-        image: docker.io/llparse/ranchervm-controller:dev
+      - name: ranchervm-backend
+        image: llparse/ranchervm-controller
         imagePullPolicy: Always
         args:
-        - -server
+        - -backend
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: rest-server
+  name: ranchervm-backend
+  namespace: ranchervm-system
 spec:
   ports:
   - name: api
     port: 9500
   selector:
-    app: rest-server
-  # TODO should be ClusterIP (internal only), exposed for development
-  type: NodePort
+    app: ranchervm-backend
+  type: ClusterIP
 ---
 apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
-  name: ranchervm-ui
-  namespace: default
+  name: ranchervm-frontend
+  namespace: ranchervm-system
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: ranchervm-ui
+        app: ranchervm-frontend
     spec:
       hostNetwork: true
       affinity:
@@ -89,11 +151,11 @@ spec:
               matchExpressions:
               - key: app
                 operator: In
-                values: ["ranchervm-ui"]
+                values: ["ranchervm-frontend"]
             topologyKey: "kubernetes.io/hostname"
       containers:
-      - name: ranchervm-ui
-        image: docker.io/llparse/ranchervm-ui:latest
+      - name: ranchervm-frontend
+        image: llparse/ranchervm-frontend
         imagePullPolicy: Always
         env:
         - name: LONGHORN_MANAGER_IP
@@ -102,19 +164,21 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: ranchervm-ui
+  name: ranchervm-frontend
+  namespace: ranchervm-system
 spec:
   ports:
   - name: ui
     port: 8000
   selector:
-    app: ranchervm-ui
+    app: ranchervm-frontend
   type: NodePort
 ---
 apiVersion: apps/v1beta2
 kind: DaemonSet
 metadata:
   name: ip-controller
+  namespace: ranchervm-system
 spec:
   selector:
     matchLabels:
@@ -127,7 +191,7 @@ spec:
       hostNetwork: true
       containers:
       - name: ip-controller
-        image: docker.io/llparse/ranchervm-controller:dev
+        image: llparse/ranchervm-controller
         imagePullPolicy: Always
         command: [ "sh", "-c"]
         args:
@@ -138,7 +202,7 @@ spec:
             fieldRef:
               fieldPath: spec.nodeName
       - name: arp-scanner
-        image: docker.io/llparse/ranchervm-controller:dev
+        image: llparse/ranchervm-controller
         imagePullPolicy: Always
         command: [ "bash", "-c"]
         args:

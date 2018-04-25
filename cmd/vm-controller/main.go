@@ -8,13 +8,11 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/llparse/kube-crd-skel/pkg/apis/ranchervm"
 	"github.com/llparse/kube-crd-skel/pkg/client/clientset/versioned"
 	"github.com/llparse/kube-crd-skel/pkg/client/informers/externalversions"
 	"github.com/llparse/kube-crd-skel/pkg/controller/ip"
@@ -38,7 +36,7 @@ func main() {
 	nodeName := flag.String("nodename", "", "Name of the node running the controller pod")
 
 	// rest-server flags
-	serv := flag.Bool("server", false, "Run the REST server")
+	serv := flag.Bool("backend", false, "Run the REST server backend")
 	listenAddress := flag.String("listen-address", ":9500", "TCP network address that the REST server will listen on")
 
 	flag.Parse()
@@ -49,17 +47,6 @@ func main() {
 	}
 	config.QPS = 50
 	config.Burst = 100
-
-	apiextensionsclientset := apiextensionsclient.NewForConfigOrDie(config)
-	if err := ranchervm.CreateVirtualMachineDefinition(apiextensionsclientset); err != nil {
-		panic(err)
-	}
-	if err := ranchervm.CreateARPTableDefinition(apiextensionsclientset); err != nil {
-		panic(err)
-	}
-	if err := ranchervm.CreateCredentialDefinition(apiextensionsclientset); err != nil {
-		panic(err)
-	}
 
 	vmClientset := versioned.NewForConfigOrDie(config)
 	vmInformerFactory := externalversions.NewSharedInformerFactory(vmClientset, 0*time.Second)
