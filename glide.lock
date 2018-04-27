@@ -1,5 +1,5 @@
 hash: 28965950a950823a3b110e022e89ed67c17d15c233d1e4f3bc91502ecd624f1c
-updated: 2018-03-23T14:53:15.209936-07:00
+updated: 2018-04-27T00:12:10.805900564-07:00
 imports:
 - name: github.com/davecgh/go-spew
   version: 782f4967f2dc4564575ca782fe2d04090b5faca8
@@ -31,7 +31,6 @@ imports:
 - name: github.com/golang/protobuf
   version: 4bd1920723d7b7c925de087aa32e2187708897f7
   subpackages:
-  - jsonpb
   - proto
   - ptypes
   - ptypes/any
@@ -47,6 +46,10 @@ imports:
   - OpenAPIv2
   - compiler
   - extensions
+- name: github.com/gorilla/context
+  version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
+- name: github.com/gorilla/mux
+  version: b57cb1605fd11ba2ecfa7f68992b4b9cc791934d
 - name: github.com/gregjones/httpcache
   version: 787624de3eb7bd915c329cba748687a3b22666a6
   subpackages:
@@ -85,15 +88,11 @@ imports:
   version: 1c05540f6879653db88113bc4a2b70aec4bd491f
   subpackages:
   - context
-  - html
-  - html/atom
+  - context/ctxhttp
   - http2
   - http2/hpack
   - idna
-  - internal/timeseries
   - lex/httplex
-  - trace
-  - websocket
 - name: golang.org/x/sys
   version: 7ddbeae9ae08c6a06a59597f0c9edbc5ff2444ce
   subpackages:
@@ -145,15 +144,9 @@ imports:
   - storage/v1
   - storage/v1beta1
 - name: k8s.io/apiextensions-apiserver
-  version: 850054ebadfd41e4e79e4da3e52802a485bb7a7b
-  subpackages:
-  - pkg/apis/apiextensions
-  - pkg/apis/apiextensions/v1beta1
-  - pkg/client/clientset/clientset
-  - pkg/client/clientset/clientset/scheme
-  - pkg/client/clientset/clientset/typed/apiextensions/v1beta1
+  version: 7aa49bc2128265b9f5587d2ec668143a8b7c05a5
 - name: k8s.io/apimachinery
-  version: bc110fd540ab678abbf2bc71d9ce908eb9325ef6
+  version: 62737119932505aba8df99644184e0705ea58df1
   subpackages:
   - pkg/api/equality
   - pkg/api/errors
@@ -196,7 +189,7 @@ imports:
   - pkg/watch
   - third_party/forked/golang/reflect
 - name: k8s.io/client-go
-  version: 3a46b5de730a74e064197a157c96c2d29724a677
+  version: fad7d0b0323e40acb461aa40a6f58151d571be79
   subpackages:
   - discovery
   - discovery/fake
@@ -303,8 +296,5 @@ imports:
 - name: k8s.io/kube-openapi
   version: 868f2f29720b192240e18284659231b440f9cda5
   subpackages:
-  - pkg/builder
   - pkg/common
-  - pkg/handler
-  - pkg/util
 testImports: []
