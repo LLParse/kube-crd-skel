@@ -3,6 +3,49 @@ kind: Namespace
 metadata:
   name: ranchervm-system
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ranchervm-service-account
+  namespace: ranchervm-system
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: ranchervm-role
+rules:
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - "*"
+- apiGroups: [""]
+  resources: ["pods", "nodes", "services"]
+  verbs: ["*"]
+- apiGroups: ["vm.rancher.com"]
+  resources: ["virtualmachines"]
+  verbs: ["*"]
+- apiGroups: ["vm.rancher.com"]
+  resources: ["arptables"]
+  verbs: ["*"]
+- apiGroups: ["vm.rancher.com"]
+  resources: ["credentials"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: ranchervm-bind
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ranchervm-role
+subjects:
+- kind: ServiceAccount
+  name: ranchervm-service-account
+  namespace: ranchervm-system
+---
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
@@ -88,6 +131,8 @@ spec:
         imagePullPolicy: Always
         args:
         - -vm
+        - -bridge-iface=eth1
+      serviceAccountName: ranchervm-service-account
 ---
 apiVersion: apps/v1beta1
 kind: Deployment
@@ -117,6 +162,7 @@ spec:
         imagePullPolicy: Always
         args:
         - -backend
+      serviceAccountName: ranchervm-service-account
 ---
 apiVersion: v1
 kind: Service
@@ -129,7 +175,7 @@ spec:
     port: 9500
   selector:
     app: ranchervm-backend
-  type: ClusterIP
+  type: NodePort
 ---
 apiVersion: apps/v1beta1
 kind: Deployment
@@ -216,3 +262,4 @@ spec:
             done;
             sleep 5;
           done
+      serviceAccountName: ranchervm-service-account
